@@ -7,3 +7,9 @@
 
 
 * Reglas: suma coeficientes = 100
+
+
+
+* Expenses
+* BillingPeriods
+* UnitCharges
