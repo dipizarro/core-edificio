@@ -6,4 +6,5 @@ public class Community
     public string Name { get; set; } = null!;
     public string Address { get; set; } = null!;
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+    public List<Unit> Units { get; set; } = new();
 }
