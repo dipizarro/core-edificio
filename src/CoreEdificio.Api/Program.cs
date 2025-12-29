@@ -1,8 +1,10 @@
 using CoreEdificio.Api.Middlewares;
 using CoreEdificio.Application.Interfaces;
+using CoreEdificio.Application.Interfaces.Billing;
 using CoreEdificio.Application.Services;
 using CoreEdificio.Infrastructure.Persistence;
 using CoreEdificio.Infrastructure.Repositories;
+using CoreEdificio.Infrastructure.Repositories.Billing;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -17,7 +19,13 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 /********** DI registrations **********/
 builder.Services.AddScoped<ICommunityRepository, CommunityRepository>();
 builder.Services.AddScoped<IUnitRepository, UnitRepository>();
+builder.Services.AddScoped<IExpenseRepository, ExpenseRepository>();
+builder.Services.AddScoped<IBillingPeriodRepository, BillingPeriodRepository>();
+builder.Services.AddScoped<IUnitChargeRepository, UnitChargeRepository>();
+builder.Services.AddScoped<IUnitReadRepository, UnitReadRepository>();
+builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 
+builder.Services.AddScoped<BillingService>();
 builder.Services.AddScoped<CommunityService>();
 builder.Services.AddScoped<UnitService>();
 
