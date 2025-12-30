@@ -1,5 +1,6 @@
 ﻿using CoreEdificio.Domain.Entities;
 using CoreEdificio.Domain.Entities.Billing;
+using CoreEdificio.Domain.Entities.Payments;
 using Microsoft.EntityFrameworkCore;
 
 namespace CoreEdificio.Infrastructure.Persistence;
@@ -13,7 +14,7 @@ public class AppDbContext : DbContext
     public DbSet<Expense> Expenses => Set<Expense>();
     public DbSet<BillingPeriod> BillingPeriods => Set<BillingPeriod>();
     public DbSet<UnitCharge> UnitCharges => Set<UnitCharge>();
-
+    public DbSet<Payment> Payments => Set<Payment>();
 
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -102,7 +103,29 @@ public class AppDbContext : DbContext
 
             b.HasIndex(x => new { x.BillingPeriodId, x.UnitId }).IsUnique();
         });
-        
+
+        modelBuilder.Entity<Payment>(b =>
+        {
+            b.ToTable("Payments");
+            b.HasKey(x => x.Id);
+
+            b.Property(x => x.CommunityId).IsRequired();
+            b.Property(x => x.UnitId).IsRequired();
+
+            b.Property(x => x.Period).HasMaxLength(7).IsRequired();
+
+            b.Property(x => x.Amount).HasPrecision(18, 2).IsRequired();
+
+            b.Property(x => x.Method).IsRequired();
+            b.Property(x => x.Reference).HasMaxLength(100);
+
+            b.Property(x => x.PaidAtUtc).IsRequired();
+            b.Property(x => x.CreatedAtUtc).IsRequired();
+
+            b.HasIndex(x => new { x.CommunityId, x.UnitId, x.Period });
+        });
+
+
 
     }
 }
