@@ -64,6 +64,14 @@ public class BillingService
             if (existing is not null && existing.Status == BillingPeriodStatus.Issued)
                 throw new ConflictException("Period already issued.");
 
+            // Si el BillingPeriod existe (Draft) y ya hay cargos, bloqueamos para evitar duplicados.
+            if (existing is not null && existing.Status == BillingPeriodStatus.Draft)
+            {
+                var hasCharges = await _charges.AnyByBillingPeriodIdAsync(existing.Id, token);
+                if (hasCharges)
+                    throw new ConflictException("Charges already generated for this period.");
+            }
+
             // 2) Leer unidades (snapshot)
             var units = await _units.ListSnapshotsByCommunityAsync(communityId, token);
             if (units.Count == 0) throw new ValidationException("No units found for this community.");
