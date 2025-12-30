@@ -104,6 +104,20 @@ Total esperado: 4340650
 
 
 
+\### Evidencia (run 2026-01)
+
+\- totalExpenses: 4.340.650
+
+\- chargesTotal: 4.340.650
+
+\- totalCoefficientPct: 100.00
+
+\- unitsCount: 10
+
+
+
+
+
 \### TEST-02 – Coeficientes inválidos (no suman 100)
 
 \*\*Qué prueba:\*\* validación de regla de negocio.

@@ -95,7 +95,8 @@ public class BillingService
             else await _periods.UpdateAsync(billing, token);
 
             // 6) Prorrateo + redondeo
-            var computed = ComputeCharges(units, billing.TotalExpenses);
+            //var computed = ComputeCharges(units, billing.TotalExpenses);
+            var computed = BillingProrationCalculator.Compute(units, billing.TotalExpenses);
 
             // 7) Persistir UnitCharges
             var entities = computed.Select(x => new UnitCharge
@@ -119,7 +120,8 @@ public class BillingService
         // Igual devolvemos el "cálculo" determinístico.
         var unitsForResponse = await _units.ListSnapshotsByCommunityAsync(communityId, ct);
         var total = await _expenses.GetTotalByCommunityAndPeriodAsync(communityId, NormalizePeriod(cmd.Period), ct);
-        var charges = ComputeCharges(unitsForResponse, decimal.Round(total, 2, MidpointRounding.AwayFromZero));
+        //var charges = ComputeCharges(unitsForResponse, decimal.Round(total, 2, MidpointRounding.AwayFromZero));
+        var charges = BillingProrationCalculator.Compute(unitsForResponse, total);
 
         return new BillingSummaryDto(
             communityId,
