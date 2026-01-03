@@ -9,7 +9,13 @@ namespace CoreEdificio.Api.Controllers;
 public class BillingController : ControllerBase
 {
     private readonly BillingService _billing;
-    public BillingController(BillingService billing) => _billing = billing;
+    private readonly PaymentsService _payments;
+    public BillingController(BillingService billing, PaymentsService payments)
+    {
+        _billing = billing;
+        _payments = payments;
+    }
+
 
     // Crear gasto
     [HttpPost("expenses")]
@@ -34,4 +40,13 @@ public class BillingController : ControllerBase
         var summary = await _billing.GetSummaryAsync(communityId, period, ct);
         return Ok(summary);
     }
+
+    // GET /api/communities/{communityId}/billing/{period}/arrears
+    [HttpGet("{period}/arrears")]
+    public async Task<IActionResult> GetArrears(Guid communityId, string period, CancellationToken ct)
+    {
+        var items = await _payments.GetArrearsAsync(communityId, period, ct);
+        return Ok(items);
+    }
+
 }
