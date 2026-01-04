@@ -86,6 +86,15 @@ if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
+
+    /********** SEEDER de usuarios y roles **********/
+    using var scope = app.Services.CreateScope();
+
+    var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+    var roles = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+    await IdentitySeeder.SeedAsync(users, roles, db);
 }
 
 app.UseHttpsRedirection();
@@ -95,5 +104,6 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+
 
 app.Run();
