@@ -3,13 +3,17 @@ using CoreEdificio.Application.Interfaces;
 using CoreEdificio.Application.Interfaces.Billing;
 using CoreEdificio.Application.Interfaces.Payments;
 using CoreEdificio.Application.Services;
+using CoreEdificio.Infrastructure.Auth;
 using CoreEdificio.Infrastructure.Identity;
 using CoreEdificio.Infrastructure.Persistence;
 using CoreEdificio.Infrastructure.Repositories;
 using CoreEdificio.Infrastructure.Repositories.Billing;
 using CoreEdificio.Infrastructure.Repositories.Payments;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -35,7 +39,9 @@ builder.Services.AddScoped<PaymentsService>();
 builder.Services.AddScoped<BillingService>();
 builder.Services.AddScoped<CommunityService>();
 builder.Services.AddScoped<UnitService>();
+builder.Services.AddScoped<JwtTokenService>();
 
+/********** AUTH **********/
 builder.Services
     .AddIdentityCore<ApplicationUser>(options =>
     {
@@ -45,6 +51,30 @@ builder.Services
     .AddRoles<IdentityRole<Guid>>()
     .AddEntityFrameworkStores<AppDbContext>()
     .AddSignInManager();
+
+var jwtKey = builder.Configuration["Jwt:Key"]!;
+var issuer = builder.Configuration["Jwt:Issuer"];
+var audience = builder.Configuration["Jwt:Audience"];
+
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = issuer,
+            ValidAudience = audience,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
+            ClockSkew = TimeSpan.FromSeconds(30)
+        };
+    });
+
+
+builder.Services.AddAuthorization();
 
 builder.Services.AddHealthChecks();
 
@@ -61,6 +91,9 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseAuthorization();
 app.UseMiddleware<ExceptionMiddleware>();
+app.UseAuthentication();
+app.UseAuthorization();
+
 app.MapControllers();
 
 app.Run();
