@@ -1,11 +1,14 @@
 ﻿using CoreEdificio.Domain.Entities;
 using CoreEdificio.Domain.Entities.Billing;
 using CoreEdificio.Domain.Entities.Payments;
+using CoreEdificio.Infrastructure.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity;
 
 namespace CoreEdificio.Infrastructure.Persistence;
 
-public class AppDbContext : DbContext
+public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid>, Guid>
 {
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
@@ -19,6 +22,8 @@ public class AppDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        base.OnModelCreating(modelBuilder);
+
         modelBuilder.Entity<Community>(b =>
         {
             b.ToTable("Communities");

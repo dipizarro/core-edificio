@@ -3,10 +3,12 @@ using CoreEdificio.Application.Interfaces;
 using CoreEdificio.Application.Interfaces.Billing;
 using CoreEdificio.Application.Interfaces.Payments;
 using CoreEdificio.Application.Services;
+using CoreEdificio.Infrastructure.Identity;
 using CoreEdificio.Infrastructure.Persistence;
 using CoreEdificio.Infrastructure.Repositories;
 using CoreEdificio.Infrastructure.Repositories.Billing;
 using CoreEdificio.Infrastructure.Repositories.Payments;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -34,7 +36,15 @@ builder.Services.AddScoped<BillingService>();
 builder.Services.AddScoped<CommunityService>();
 builder.Services.AddScoped<UnitService>();
 
-
+builder.Services
+    .AddIdentityCore<ApplicationUser>(options =>
+    {
+        options.Password.RequiredLength = 8;
+        options.User.RequireUniqueEmail = true;
+    })
+    .AddRoles<IdentityRole<Guid>>()
+    .AddEntityFrameworkStores<AppDbContext>()
+    .AddSignInManager();
 
 builder.Services.AddHealthChecks();
 
