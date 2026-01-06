@@ -1,8 +1,12 @@
-﻿using CoreEdificio.Application.Services;
+﻿using CoreEdificio.Api.Auth;
+using CoreEdificio.Application.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CoreEdificio.Api.Controllers;
 
+[Authorize(Roles = "Resident,Committee,Admin")]
+[Authorize(Policy = AuthPolicies.UnitScope)]
 [ApiController]
 [Route("api/communities/{communityId:guid}/units/{unitId:guid}/balance")]
 public class UnitBalancesController : ControllerBase

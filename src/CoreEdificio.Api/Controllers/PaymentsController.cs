@@ -1,9 +1,13 @@
-﻿using CoreEdificio.Application.Contracts.Payments;
+﻿using CoreEdificio.Api.Auth;
+using CoreEdificio.Application.Contracts.Payments;
 using CoreEdificio.Application.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CoreEdificio.Api.Controllers;
 
+[Authorize(Roles = "Committee,Admin")]
+[Authorize(Policy = AuthPolicies.CommunityScope)]
 [ApiController]
 [Route("api/communities/{communityId:guid}/payments")]
 public class PaymentsController : ControllerBase

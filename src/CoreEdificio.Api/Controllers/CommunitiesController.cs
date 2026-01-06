@@ -1,9 +1,13 @@
-﻿using CoreEdificio.Application.Contracts;
+﻿using CoreEdificio.Api.Auth;
+using CoreEdificio.Application.Contracts;
 using CoreEdificio.Application.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CoreEdificio.Api.Controllers;
 
+[Authorize(Roles = "Committee,Admin")]
+[Authorize(Policy = AuthPolicies.CommunityScope)]
 [ApiController]
 [Route("api/communities")]
 public class CommunitiesController : ControllerBase
@@ -18,10 +22,10 @@ public class CommunitiesController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
     }
 
-    [HttpGet("{id:guid}")]
-    public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
+    [HttpGet("{communityId:guid}")]
+    public async Task<IActionResult> GetById(Guid communityId, CancellationToken ct)
     {
-        var c = await _service.GetByIdAsync(id, ct);
+        var c = await _service.GetByIdAsync(communityId, ct);
         return c is null ? NotFound() : Ok(c);
     }
 

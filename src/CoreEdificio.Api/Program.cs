@@ -1,3 +1,4 @@
+﻿using CoreEdificio.Api.Auth;
 using CoreEdificio.Api.Middlewares;
 using CoreEdificio.Application.Interfaces;
 using CoreEdificio.Application.Interfaces.Billing;
@@ -10,16 +11,47 @@ using CoreEdificio.Infrastructure.Repositories;
 using CoreEdificio.Infrastructure.Repositories.Billing;
 using CoreEdificio.Infrastructure.Repositories.Payments;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new OpenApiInfo { Title = "CoreEdificio API", Version = "v1" });
+
+    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Type = SecuritySchemeType.Http,
+        Scheme = "Bearer",
+        BearerFormat = "JWT",
+        In = ParameterLocation.Header,
+        Description = "Ingrese: Bearer {token}"
+    });
+
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            Array.Empty<string>()
+        }
+    });
+});
+
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("Default")));
@@ -34,6 +66,11 @@ builder.Services.AddScoped<IUnitReadRepository, UnitReadRepository>();
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<IPaymentRepository, PaymentRepository>();
 builder.Services.AddScoped<IBillingReadRepository, BillingReadRepository>();
+builder.Services.AddScoped<UserProvisioningService>();
+
+builder.Services.AddSingleton<IAuthorizationHandler, CommunityScopeHandler>();
+builder.Services.AddSingleton<IAuthorizationHandler, UnitScopeHandler>();
+
 
 builder.Services.AddScoped<PaymentsService>();
 builder.Services.AddScoped<BillingService>();
@@ -74,7 +111,17 @@ builder.Services
     });
 
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy(AuthPolicies.CommunityScope, policy =>
+        policy.RequireAuthenticatedUser()
+              .AddRequirements(new CommunityScopeRequirement()));
+
+    options.AddPolicy(AuthPolicies.UnitScope, policy =>
+        policy.RequireAuthenticatedUser()
+              .AddRequirements(new UnitScopeRequirement()));
+});
+
 
 builder.Services.AddHealthChecks();
 
@@ -98,7 +145,6 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-app.UseAuthorization();
 app.UseMiddleware<ExceptionMiddleware>();
 app.UseAuthentication();
 app.UseAuthorization();

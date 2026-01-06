@@ -1,9 +1,13 @@
-﻿using CoreEdificio.Application.Contracts;
+﻿using CoreEdificio.Api.Auth;
+using CoreEdificio.Application.Contracts;
 using CoreEdificio.Application.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CoreEdificio.Api.Controllers;
 
+[Authorize(Roles = "Committee,Admin")]
+[Authorize(Policy = AuthPolicies.CommunityScope)]
 [ApiController]
 public class UnitsController : ControllerBase
 {
