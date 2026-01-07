@@ -8,11 +8,10 @@ All bulk operations return a response with the following structure:
 
 ```json
 {
-  "summary": {
-    "total": "number", // Total items processed
-    "created": "number", // Number of successfully created items
-    "failed": "number" // Number of failed items
-  },
+  "communityId": "uuid",
+  "total": "number", // Total items processed
+  "created": "number", // Number of successfully created items
+  "failed": "number", // Number of failed items
   "results": [
     {
       "index": "number", // Index from the original request array

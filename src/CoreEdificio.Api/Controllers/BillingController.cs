@@ -1,5 +1,6 @@
 ﻿using CoreEdificio.Api.Auth;
 using CoreEdificio.Application.Contracts.Billing;
+using CoreEdificio.Application.Contracts.Billing.Bulk;
 using CoreEdificio.Application.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -27,6 +28,13 @@ public class BillingController : ControllerBase
     {
         var created = await _billing.CreateExpenseAsync(communityId, cmd, ct);
         return Created($"/api/communities/{communityId}/billing/expenses/{created.Id}", created);
+    }
+
+    [HttpPost("expenses/bulk")]
+    public async Task<IActionResult> CreateExpensesBulk(Guid communityId, CreateExpensesBulkCommand cmd, CancellationToken ct)
+    {
+        var response = await _billing.CreateExpensesBulkAsync(communityId, cmd, ct);
+        return Ok(response);
     }
 
     // Emitir período

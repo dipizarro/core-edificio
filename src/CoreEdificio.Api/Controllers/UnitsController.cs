@@ -1,5 +1,6 @@
 ﻿using CoreEdificio.Api.Auth;
 using CoreEdificio.Application.Contracts;
+using CoreEdificio.Application.Contracts.Bulk;
 using CoreEdificio.Application.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -19,6 +20,13 @@ public class UnitsController : ControllerBase
     {
         var created = await _service.CreateAsync(communityId, cmd, ct);
         return Created($"/api/units/{created.Id}", created);
+    }
+
+    [HttpPost("api/communities/{communityId:guid}/units/bulk")]
+    public async Task<IActionResult> CreateBulk(Guid communityId, CreateUnitsBulkCommand cmd, CancellationToken ct)
+    {
+        var response = await _service.CreateBulkAsync(communityId, cmd, ct);
+        return Ok(response);
     }
 
     [HttpGet("api/communities/{communityId:guid}/units")]
