@@ -37,10 +37,10 @@ Create multiple units in a community at once.
 {
   "units": [
     {
-      // CreateUnitCommand fields
-      "name": "string",
-      "type": "string",
-      // ... other fields
+      "number": "string",
+      "coefficientPct": "number",
+      "ownerName": "string | null",
+      "ownerEmail": "string | null"
     }
   ]
 }
@@ -58,10 +58,9 @@ Create multiple expenses in a community at once.
 {
   "expenses": [
     {
-      // CreateExpenseCommand fields
+      "period": "string (YYYY-MM)",
       "description": "string",
-      "amount": "number",
-      // ... other fields
+      "amount": "number"
     }
   ]
 }
