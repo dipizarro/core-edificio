@@ -16,6 +16,12 @@ public class ExpenseRepository : IExpenseRepository
         await _db.SaveChangesAsync(ct);
     }
 
+    public async Task AddRangeAsync(List<Expense> expenses, CancellationToken ct = default)
+    {
+        _db.Expenses.AddRange(expenses);
+        await _db.SaveChangesAsync(ct);
+    }
+
     public Task<decimal> GetTotalByCommunityAndPeriodAsync(Guid communityId, string period, CancellationToken ct = default)
         => _db.Expenses
             .Where(x => x.CommunityId == communityId && x.Period == period)

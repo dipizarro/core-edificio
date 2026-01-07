@@ -22,6 +22,21 @@ public class UnitRepository : IUnitRepository
         await _db.SaveChangesAsync(ct);
     }
 
+    public async Task AddRangeAsync(List<Unit> units, CancellationToken ct = default)
+    {
+        _db.Units.AddRange(units);
+        await _db.SaveChangesAsync(ct);
+    }
+
+    public async Task<HashSet<string>> GetExistingUnitNumbersAsync(Guid communityId, IEnumerable<string> numbers, CancellationToken ct = default)
+    {
+        var existing = await _db.Units
+            .Where(x => x.CommunityId == communityId && numbers.Contains(x.Number))
+            .Select(x => x.Number)
+            .ToListAsync(ct);
+        return existing.ToHashSet();
+    }
+
     public Task<List<Unit>> ListByCommunityAsync(Guid communityId, CancellationToken ct = default)
         => _db.Units.AsNoTracking()
             .Where(x => x.CommunityId == communityId)
