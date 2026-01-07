@@ -1,5 +1,7 @@
 ﻿using CoreEdificio.Application.Common;
 using CoreEdificio.Application.Contracts.Billing;
+using CoreEdificio.Application.Contracts.Bulk;
+using CoreEdificio.Application.Contracts.Billing.Bulk;
 using CoreEdificio.Application.Interfaces.Billing;
 using CoreEdificio.Domain.Entities.Billing;
 
@@ -188,6 +190,95 @@ public class BillingService
         if (summary is null) throw new NotFoundException("Billing period not found.");
 
         return summary;
+    }
+
+    public async Task<BulkResponse<Expense>> CreateExpensesBulkAsync(Guid communityId, CreateExpensesBulkCommand bulk, CancellationToken ct = default)
+    {
+        var results = new List<BulkItemResult<Expense>>();
+        var expensesToCreate = new List<Expense>();
+
+        if (bulk.Expenses is null || bulk.Expenses.Count == 0)
+        {
+             return new BulkResponse<Expense>(communityId, 0, 0, 0, results);
+        }
+
+        // Cachear estados de periodos para no consultar por cada item
+        // Asumimos que todos los items pueden tener periodos distintos.
+        // Pero optimización: buscar distinct periods y validar status.
+        var distinctPeriods = bulk.Expenses
+            .Select(x => x.Period)
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .Distinct()
+            .Select(NormalizePeriod) // Cuidado: esto puede tirar excepcion si formato invalido. Mejor validar dentro del loop.
+            .ToList(); 
+        
+        // No, mejor validamos uno por uno en el loop o hacemos un pre-pass seguro.
+        // Haremos check one-by-one pero optimizado con diccionario local si se repiten.
+        var periodStatusCache = new Dictionary<string, bool>(); // Period -> IsIssued (true=bloqueado)
+
+        foreach (var (cmd, index) in bulk.Expenses.Select((c, i) => (c, i)))
+        {
+            try
+            {
+                var period = NormalizePeriod(cmd.Period); // throws ValidationException
+                
+                if (string.IsNullOrWhiteSpace(cmd.Description)) 
+                {
+                    results.Add(new BulkItemResult<Expense>(index, false, "Description is required", null));
+                    continue;
+                }
+                if (cmd.Amount <= 0)
+                {
+                    results.Add(new BulkItemResult<Expense>(index, false, "Amount must be > 0", null));
+                    continue;
+                }
+
+                // Check Period Status
+                if (!periodStatusCache.ContainsKey(period))
+                {
+                    var isIssued = await _expenses.AnyForIssuedPeriodAsync(communityId, period, ct);
+                    periodStatusCache[period] = isIssued;
+                }
+
+                if (periodStatusCache[period])
+                {
+                    results.Add(new BulkItemResult<Expense>(index, false, "Period is already issued", null));
+                    continue;
+                }
+
+                // Exito
+                var expense = new Expense
+                {
+                    CommunityId = communityId,
+                    Period = period,
+                    Description = cmd.Description.Trim(),
+                    Amount = decimal.Round(cmd.Amount, 2, MidpointRounding.AwayFromZero),
+                    CreatedAtUtc = DateTime.UtcNow
+                };
+
+                expensesToCreate.Add(expense);
+                results.Add(new BulkItemResult<Expense>(index, true, null, expense));
+
+            }
+            catch (ValidationException ex)
+            {
+                results.Add(new BulkItemResult<Expense>(index, false, ex.Message, null));
+            }
+            catch (Exception ex)
+            {
+                 results.Add(new BulkItemResult<Expense>(index, false, "Internal error: " + ex.Message, null));
+            }
+        }
+
+        if (expensesToCreate.Count > 0)
+        {
+            await _expenses.AddRangeAsync(expensesToCreate, ct);
+        }
+
+        var createdCount = results.Count(x => x.Success);
+        var failedCount = results.Count(x => !x.Success);
+
+        return new BulkResponse<Expense>(communityId, bulk.Expenses.Count, createdCount, failedCount, results);
     }
 
 }
