@@ -19,4 +19,15 @@ public class UnitChargeRepository : IUnitChargeRepository
     public Task<bool> AnyByBillingPeriodIdAsync(Guid billingPeriodId, CancellationToken ct = default)
     => _db.UnitCharges.AsNoTracking().AnyAsync(x => x.BillingPeriodId == billingPeriodId, ct);
 
+    public Task<List<UnitCharge>> GetChargesBeforePeriodAsync(Guid communityId, Guid unitId, string period, CancellationToken ct = default)
+        => _db.UnitCharges.AsNoTracking()
+            .Include(x => x.BillingPeriod)
+            .Where(x => x.UnitId == unitId && string.Compare(x.BillingPeriod.Period, period) < 0)
+            .ToListAsync(ct);
+
+    public Task<List<UnitCharge>> GetChargesForPeriodAsync(Guid communityId, Guid unitId, string period, CancellationToken ct = default)
+        => _db.UnitCharges.AsNoTracking()
+            .Include(x => x.BillingPeriod)
+            .Where(x => x.UnitId == unitId && x.BillingPeriod.Period == period)
+            .ToListAsync(ct);
 }

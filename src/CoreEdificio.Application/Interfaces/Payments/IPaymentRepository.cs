@@ -9,4 +9,7 @@ public interface IPaymentRepository
     Task<decimal> GetPaidTotalAsync(Guid communityId, Guid unitId, string period, CancellationToken ct = default);
 
     Task<List<Payment>> ListAsync(Guid communityId, Guid? unitId, string? period, CancellationToken ct = default);
+
+    Task<List<Payment>> GetPaymentsBeforePeriodAsync(Guid communityId, Guid unitId, string period, CancellationToken ct = default);
+    Task<List<Payment>> GetPaymentsForPeriodAsync(Guid communityId, Guid unitId, string period, CancellationToken ct = default);
 }

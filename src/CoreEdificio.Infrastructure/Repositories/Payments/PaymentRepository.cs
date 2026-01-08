@@ -30,4 +30,15 @@ public class PaymentRepository : IPaymentRepository
 
         return await q.OrderByDescending(x => x.PaidAtUtc).ToListAsync(ct);
     }
+
+    public Task<List<Payment>> GetPaymentsBeforePeriodAsync(Guid communityId, Guid unitId, string period, CancellationToken ct = default)
+        => _db.Payments.AsNoTracking()
+            .Where(x => x.CommunityId == communityId && x.UnitId == unitId && string.Compare(x.Period, period) < 0)
+            .ToListAsync(ct);
+
+    public Task<List<Payment>> GetPaymentsForPeriodAsync(Guid communityId, Guid unitId, string period, CancellationToken ct = default)
+        => _db.Payments.AsNoTracking()
+            .Where(x => x.CommunityId == communityId && x.UnitId == unitId && x.Period == period)
+            .ToListAsync(ct);
+    
 }
