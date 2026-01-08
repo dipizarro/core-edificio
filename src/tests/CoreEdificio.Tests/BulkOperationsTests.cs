@@ -4,9 +4,11 @@ using CoreEdificio.Application.Contracts.Billing;
 using CoreEdificio.Application.Contracts.Billing.Bulk;
 using CoreEdificio.Application.Interfaces;
 using CoreEdificio.Application.Interfaces.Billing;
+using CoreEdificio.Application.Interfaces.Payments;
 using CoreEdificio.Application.Services;
 using CoreEdificio.Domain.Entities;
 using CoreEdificio.Domain.Entities.Billing;
+using Microsoft.Extensions.Configuration;
 using Xunit;
 using Moq;
 
@@ -28,7 +30,7 @@ public class BulkOperationsTests
     public BulkOperationsTests()
     {
         _unitService = new UnitService(_unitRepo.Object);
-        _billingService = new BillingService(_expenses.Object, _periods.Object, _charges.Object, _unitRead.Object, _uow.Object);
+        _billingService = new BillingService(_expenses.Object, _periods.Object, _charges.Object, _unitRead.Object, new Mock<IPaymentRepository>().Object, _uow.Object, new Mock<IConfiguration>().Object);
     }
 
     [Fact]
