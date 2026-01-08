@@ -2,8 +2,11 @@
 using CoreEdificio.Application.Contracts.Billing;
 using CoreEdificio.Application.Contracts.Bulk;
 using CoreEdificio.Application.Contracts.Billing.Bulk;
+using CoreEdificio.Application.Contracts.Billing.Statement;
 using CoreEdificio.Application.Interfaces.Billing;
+using CoreEdificio.Application.Interfaces.Payments;
 using CoreEdificio.Domain.Entities.Billing;
+using Microsoft.Extensions.Configuration;
 
 namespace CoreEdificio.Application.Services;
 
@@ -15,20 +18,26 @@ public class BillingService
     private readonly IBillingPeriodRepository _periods;
     private readonly IUnitChargeRepository _charges;
     private readonly IUnitReadRepository _units;
+    private readonly IPaymentRepository _payments;
     private readonly IUnitOfWork _uow;
+    private readonly IConfiguration _config;
 
     public BillingService(
         IExpenseRepository expenses,
         IBillingPeriodRepository periods,
         IUnitChargeRepository charges,
         IUnitReadRepository units,
-        IUnitOfWork uow)
+        IPaymentRepository payments,
+        IUnitOfWork uow,
+        IConfiguration config)
     {
         _expenses = expenses;
         _periods = periods;
         _charges = charges;
         _units = units;
+        _payments = payments;
         _uow = uow;
+        _config = config;
     }
 
     public async Task<Expense> CreateExpenseAsync(Guid communityId, CreateExpenseCommand cmd, CancellationToken ct = default)
@@ -279,6 +288,106 @@ public class BillingService
         var failedCount = results.Count(x => !x.Success);
 
         return new BulkResponse<Expense>(communityId, bulk.Expenses.Count, createdCount, failedCount, results);
+    }
+
+    public async Task<UnitStatementDto> GetUnitStatementAsync(Guid communityId, Guid unitId, string period, CancellationToken ct)
+    {
+        period = NormalizePeriod(period);
+
+        // 1. Validar comunidad y obtener unidad
+        // Usamos ListSnapshotsByCommunityAsync porque IUnitReadRepository no tiene GetById
+        var units = await _units.ListSnapshotsByCommunityAsync(communityId, ct);
+        var unit = units.FirstOrDefault(u => u.UnitId == unitId);
+        
+        if (unit is null)
+            throw new NotFoundException($"Unit {unitId} not found in community {communityId}.");
+
+        // 2. Saldo Anterior (Previous Balance)
+        var chargesBefore = await _charges.GetChargesBeforePeriodAsync(communityId, unitId, period, ct);
+        var paymentsBefore = await _payments.GetPaymentsBeforePeriodAsync(communityId, unitId, period, ct);
+
+        var chargesBeforeTotal = chargesBefore.Sum(x => x.Amount);
+        var paymentsBeforeTotal = paymentsBefore.Sum(x => x.Amount);
+        
+        var previousBalance = chargesBeforeTotal - paymentsBeforeTotal;
+
+        // 3. Movimientos del Periodo (Current Charges & Payments)
+        var currentCharges = await _charges.GetChargesForPeriodAsync(communityId, unitId, period, ct);
+        var currentPayments = await _payments.GetPaymentsForPeriodAsync(communityId, unitId, period, ct);
+
+        var currentChargesTotal = currentCharges.Sum(x => x.Amount);
+        var paymentsTotal = currentPayments.Sum(x => x.Amount);
+
+        // 4. Total a Pagar
+        var totalDue = previousBalance + currentChargesTotal - paymentsTotal;
+
+        // 5. Construir Líneas
+        var lines = new List<StatementLineDto>();
+
+        // Agregamos cargos
+        lines.AddRange(currentCharges.Select(c => new StatementLineDto(
+            Type: "Charge", 
+            Description: "Gasto Común", 
+            Amount: c.Amount, 
+            Date: c.BillingPeriod.IssuedAtUtc ?? DateTime.MinValue,
+            Period: period
+        )));
+
+        // Agregamos pagos
+        lines.AddRange(currentPayments.Select(p => new StatementLineDto(
+            Type: "Payment",
+            Description: "Abono",
+            Amount: p.Amount, // Pagos restan a la deuda, pero aquí mostramos monto absoluto? 
+            // En el statement suele mostrarse positivo en la columna de abonos. 
+            // El DTO Lines tiene Amount. Lo dejaremos positivo y el Type indica si suma o resta.
+            Date: p.PaidAtUtc,
+            Period: p.Period
+        )));
+
+        // Ordenar por fecha
+        lines = lines.OrderBy(x => x.Date).ToList();
+
+        // 6. Calcular DueDate
+        var dueDay = _config.GetValue<int>("Billing:DueDayOfMonth", 0);
+        
+        // Asumimos vencimiento en el mes SIGUIENTE al periodo.
+        // Ejemplo: Periodo 2024-01-01 -> Vencimiento Feb.
+        var parts = period.Split('-');
+        var year = int.Parse(parts[0]);
+        var month = int.Parse(parts[1]);
+        var periodDate = new DateTime(year, month, 1);
+        var nextMonth = periodDate.AddMonths(1);
+
+        DateTime dueDate;
+        if (dueDay > 0)
+        {
+             var daysInNextMonth = DateTime.DaysInMonth(nextMonth.Year, nextMonth.Month);
+             var day = Math.Min(dueDay, daysInNextMonth);
+             dueDate = new DateTime(nextMonth.Year, nextMonth.Month, day);
+        }
+        else
+        {
+             // Default: día 10 del mes siguiente si no hay config
+             // O último día del mes siguiente? El usuario dijo "o último día del mes si no existe" refiriéndose al nro de día.
+             // Asumiremos día 10 por defecto si no hay config.
+             dueDay = 10;
+             var daysInNextMonth = DateTime.DaysInMonth(nextMonth.Year, nextMonth.Month);
+             var day = Math.Min(dueDay, daysInNextMonth);
+             dueDate = new DateTime(nextMonth.Year, nextMonth.Month, day);
+        }
+
+        return new UnitStatementDto(
+            CommunityId: communityId,
+            UnitId: unitId,
+            UnitNumber: unit.Number,
+            Period: period,
+            PreviousBalance: previousBalance,
+            CurrentChargesTotal: currentChargesTotal,
+            PaymentsTotal: paymentsTotal,
+            TotalDue: totalDue,
+            DueDate: dueDate,
+            Lines: lines
+        );
     }
 
 }
