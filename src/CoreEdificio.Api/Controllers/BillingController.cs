@@ -61,4 +61,33 @@ public class BillingController : ControllerBase
         return Ok(items);
     }
 
+    /// <summary>
+    /// Consulta estado de cuenta de una unidad (Admin/Committee)
+    /// </summary>
+    [HttpGet("units/{unitId:guid}/statement/{period}")]
+    public async Task<IActionResult> GetStatement(Guid communityId, Guid unitId, string period, CancellationToken ct)
+    {
+        var statement = await _billing.GetUnitStatementAsync(communityId, unitId, period, ct);
+        return Ok(statement);
+    }
+
+    /// <summary>
+    /// Consulta MI estado de cuenta (Resident)
+    /// </summary>
+    [HttpGet("my-statement/{period}")]
+    [Authorize(Roles = "Resident")] 
+    // AuthPolicies.CommunityScope ya está a nivel de controlador, pero necesitamos UnitId del claim
+    public async Task<IActionResult> GetMyStatement(Guid communityId, string period, CancellationToken ct)
+    {
+        // Obtener UnitId de los claims
+        var unitIdClaim = User.FindFirst("UnitId")?.Value;
+        if (string.IsNullOrEmpty(unitIdClaim) || !Guid.TryParse(unitIdClaim, out var unitId))
+        {
+             return Forbid(); // O 400 Bad Request si preferimos
+        }
+
+        var statement = await _billing.GetUnitStatementAsync(communityId, unitId, period, ct);
+        return Ok(statement);
+    }
+
 }
