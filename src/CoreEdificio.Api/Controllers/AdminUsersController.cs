@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace CoreEdificio.Api.Controllers;
 
-[Authorize(Roles = "Admin")]
+[Authorize(Roles = "Committee,Admin")]
 [ApiController]
 [Route("api/admin/users")]
 public class AdminUsersController : ControllerBase

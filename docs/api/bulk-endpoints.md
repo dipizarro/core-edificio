@@ -37,7 +37,7 @@ Create multiple units in a community at once.
 {
   "units": [
     {
-      "number": "string",
+      "unitNumber": "string",
       "coefficientPct": "number",
       "ownerName": "string | null",
       "ownerEmail": "string | null"

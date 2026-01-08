@@ -1,3 +1,3 @@
 ﻿namespace CoreEdificio.Application.Contracts;
 
-public record CreateUnitCommand(string Number, decimal CoefficientPct, string? OwnerName, string? OwnerEmail);
+public record CreateUnitCommand(string UnitNumber, decimal CoefficientPct, string? OwnerName, string? OwnerEmail);

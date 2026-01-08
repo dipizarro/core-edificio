@@ -17,13 +17,13 @@ public class UnitService
         if (!await _repo.CommunityExistsAsync(communityId, ct))
             throw new NotFoundException("Community not found.");
 
-        if (string.IsNullOrWhiteSpace(cmd.Number))
+        if (string.IsNullOrWhiteSpace(cmd.UnitNumber))
             throw new ValidationException("Unit number is required.");
 
         if (cmd.CoefficientPct <= 0 || cmd.CoefficientPct > 100)
             throw new ValidationException("CoefficientPct must be > 0 and <= 100.");
 
-        var number = cmd.Number.Trim();
+        var number = cmd.UnitNumber.Trim();
 
         if (await _repo.UnitNumberExistsAsync(communityId, number, ct))
             throw new ConflictException("Unit number already exists in this community.");
@@ -62,10 +62,10 @@ public class UnitService
         // 1. Normalización y validación básica
         var normalizedItems = bulk.Units.Select((cmd, index) =>
         {
-            var number = cmd.Number?.Trim() ?? "";
+            var number = cmd.UnitNumber?.Trim() ?? "";
             var isValid = !string.IsNullOrWhiteSpace(number) && cmd.CoefficientPct > 0 && cmd.CoefficientPct <= 100;
             return new { Index = index, Cmd = cmd, Number = number, IsValid = isValid };
-        }).ToList();
+        }).ToList(); // <-- Logic uses 'Number' internally for normalized string, which is fine, but source is 'UnitNumber'
 
         // 2. Detección de duplicados en el request
         var duplicatesInRequest = normalizedItems
