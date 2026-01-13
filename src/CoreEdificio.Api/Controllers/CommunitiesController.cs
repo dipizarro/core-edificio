@@ -29,6 +29,13 @@ public class CommunitiesController : ControllerBase
         return c is null ? NotFound() : Ok(c);
     }
 
+    [HttpGet("{communityId:guid}/residents")]
+    public async Task<IActionResult> GetResidents(Guid communityId, CancellationToken ct)
+    {
+        var residents = await _service.GetResidentsWithUnitsAsync(communityId, ct);
+        return Ok(residents);
+    }
+
     [HttpGet]
     public async Task<IActionResult> List(CancellationToken ct)
         => Ok(await _service.ListAsync(ct));

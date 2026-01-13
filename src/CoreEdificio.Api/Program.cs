@@ -2,6 +2,7 @@
 using CoreEdificio.Api.Middlewares;
 using CoreEdificio.Application.Interfaces;
 using CoreEdificio.Application.Interfaces.Billing;
+using CoreEdificio.Application.Interfaces.Identity;
 using CoreEdificio.Application.Interfaces.Payments;
 using CoreEdificio.Application.Services;
 using CoreEdificio.Infrastructure.Auth;
@@ -72,6 +73,7 @@ builder.Services.AddSingleton<IAuthorizationHandler, CommunityScopeHandler>();
 builder.Services.AddSingleton<IAuthorizationHandler, UnitScopeHandler>();
 
 
+builder.Services.AddScoped<IIdentityService, IdentityService>();
 builder.Services.AddScoped<PaymentsService>();
 builder.Services.AddScoped<BillingService>();
 builder.Services.AddScoped<CommunityService>();
