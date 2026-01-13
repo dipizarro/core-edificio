@@ -1,5 +1,6 @@
 ﻿using CoreEdificio.Api.Auth;
 using CoreEdificio.Application.Contracts;
+using CoreEdificio.Application.Contracts.Residents;
 using CoreEdificio.Application.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -29,7 +30,11 @@ public class CommunitiesController : ControllerBase
         return c is null ? NotFound() : Ok(c);
     }
 
+    /// <summary>
+    /// Lista los residentes de la comunidad con sus unidades asociadas.
+    /// </summary>
     [HttpGet("{communityId:guid}/residents")]
+    [ProducesResponseType(typeof(List<ResidentWithUnitsDto>), 200)]
     public async Task<IActionResult> GetResidents(Guid communityId, CancellationToken ct)
     {
         var residents = await _service.GetResidentsWithUnitsAsync(communityId, ct);
