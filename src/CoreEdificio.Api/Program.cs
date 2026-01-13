@@ -84,7 +84,11 @@ builder.Services.AddScoped<JwtTokenService>();
 builder.Services
     .AddIdentityCore<ApplicationUser>(options =>
     {
-        options.Password.RequiredLength = 8;
+        options.Password.RequireDigit = false;
+        options.Password.RequireLowercase = false;
+        options.Password.RequireNonAlphanumeric = false;
+        options.Password.RequireUppercase = false;
+        options.Password.RequiredLength = 6;
         options.User.RequireUniqueEmail = true;
     })
     .AddRoles<IdentityRole<Guid>>()
