@@ -13,4 +13,6 @@ public class Unit
     public string? OwnerEmail { get; set; }
 
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+
+    public ICollection<UserUnit> UserUnits { get; set; } = new List<UserUnit>();
 }

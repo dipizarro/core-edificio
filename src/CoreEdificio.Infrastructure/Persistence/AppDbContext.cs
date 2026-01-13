@@ -18,6 +18,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
     public DbSet<BillingPeriod> BillingPeriods => Set<BillingPeriod>();
     public DbSet<UnitCharge> UnitCharges => Set<UnitCharge>();
     public DbSet<Payment> Payments => Set<Payment>();
+    public DbSet<UserUnit> UserUnits => Set<UserUnit>();
 
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -128,6 +129,29 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
             b.Property(x => x.CreatedAtUtc).IsRequired();
 
             b.HasIndex(x => new { x.CommunityId, x.UnitId, x.Period });
+        });
+
+        modelBuilder.Entity<UserUnit>(b =>
+        {
+            b.ToTable("UserUnits");
+            b.HasKey(x => new { x.UserId, x.UnitId }); // Composite Key
+
+            b.Property(x => x.RelationshipType).HasMaxLength(50).IsRequired();
+            b.Property(x => x.CreatedAtUtc).IsRequired();
+
+            // Relación con ApplicationUser
+            b.HasOne<ApplicationUser>() 
+             .WithMany(u => u.UserUnits)
+             .HasForeignKey(x => x.UserId)
+             .OnDelete(DeleteBehavior.Cascade);
+
+            // Relación con Unit
+            b.HasOne(x => x.Unit)
+             .WithMany(u => u.UserUnits)
+             .HasForeignKey(x => x.UnitId)
+             .OnDelete(DeleteBehavior.Cascade);
+
+            b.HasIndex(x => x.CommunityId);
         });
 
 

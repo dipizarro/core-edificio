@@ -29,6 +29,7 @@ public static class IdentitySeeder
 
         await CreateUserIfNotExists(
             users,
+            db,
             email: "admin@coreedificio.local",
             password: "Admin123!",
             role: "Admin",
@@ -38,6 +39,7 @@ public static class IdentitySeeder
 
         await CreateUserIfNotExists(
             users,
+            db,
             email: "committee@coreedificio.local",
             password: "Committee123!",
             role: "Committee",
@@ -47,6 +49,7 @@ public static class IdentitySeeder
 
         await CreateUserIfNotExists(
             users,
+            db,
             email: "resident@coreedificio.local",
             password: "Resident123!",
             role: "Resident",
@@ -57,6 +60,7 @@ public static class IdentitySeeder
 
     private static async Task CreateUserIfNotExists(
         UserManager<ApplicationUser> users,
+        AppDbContext db,
         string email,
         string password,
         string role,
@@ -71,8 +75,8 @@ public static class IdentitySeeder
             Id = Guid.NewGuid(),
             Email = email,
             UserName = email,
-            CommunityId = communityId,
-            UnitId = unitId,
+            CommunityId = communityId, // Mantener para backfill/compatibilidad
+            UnitId = unitId,           // Mantener para backfill/compatibilidad
             EmailConfirmed = true
         };
 
@@ -80,5 +84,19 @@ public static class IdentitySeeder
         if (!result.Succeeded) return;
 
         await users.AddToRoleAsync(user, role);
+
+        // Crear asociación UserUnit
+        var userUnit = new CoreEdificio.Domain.Entities.UserUnit
+        {
+            UserId = user.Id,
+            UnitId = unitId,
+            CommunityId = communityId,
+            RelationshipType = role == "Resident" ? "Resident" : "Admin",
+            IsPrimary = true,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+
+        db.UserUnits.Add(userUnit);
+        await db.SaveChangesAsync();
     }
 }
