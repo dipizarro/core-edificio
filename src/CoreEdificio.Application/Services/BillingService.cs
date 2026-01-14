@@ -89,7 +89,7 @@ public class BillingService
 
             // 3) Total coeficientes
             var totalCoef = units.Sum(x => x.CoefficientPct);
-            if (totalCoef <= 0) throw new ValidationException("Total coefficient must be > 0.");
+            if (totalCoef <= 0) throw new ValidationException("Total coefficient sum cannot be zero. Ensure units have valid components or coefficients.");
 
             // (en v0.x aceptamos tolerancia; más adelante podemos exigir 100 exacto)
             if (decimal.Abs(totalCoef - CoefTarget) > 0.01m)

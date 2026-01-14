@@ -16,4 +16,14 @@ public class Unit
 
     public ICollection<UserUnit> UserUnits { get; set; } = new List<UserUnit>();
     public ICollection<UnitComponent> Components { get; set; } = new List<UnitComponent>();
+
+    public decimal GetTotalCoefficientPct()
+    {
+        if (Components == null || !Components.Any(x => x.IsActive))
+        {
+            return CoefficientPct;
+        }
+
+        return Components.Where(x => x.IsActive).Sum(x => x.CoefficientPct);
+    }
 }

@@ -9,10 +9,14 @@ public class UnitReadRepository : IUnitReadRepository
     private readonly AppDbContext _db;
     public UnitReadRepository(AppDbContext db) => _db = db;
 
-    public Task<List<UnitSnapshot>> ListSnapshotsByCommunityAsync(Guid communityId, CancellationToken ct = default)
-        => _db.Units.AsNoTracking()
+    public async Task<List<UnitSnapshot>> ListSnapshotsByCommunityAsync(Guid communityId, CancellationToken ct = default)
+    {
+        var units = await _db.Units.AsNoTracking()
+            .Include(x => x.Components)
             .Where(x => x.CommunityId == communityId)
             .OrderBy(x => x.Number)
-            .Select(x => new UnitSnapshot(x.Id, x.Number, x.CoefficientPct))
             .ToListAsync(ct);
+
+        return units.Select(x => new UnitSnapshot(x.Id, x.Number, x.GetTotalCoefficientPct())).ToList();
+    }
 }
