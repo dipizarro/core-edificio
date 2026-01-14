@@ -20,7 +20,6 @@ public class IdentityService : IIdentityService
     public async Task<List<ResidentWithUnitsDto>> GetResidentsWithUnitsAsync(Guid communityId, CancellationToken ct = default)
     {
         // Traer usuarios que tengan al menos una relación en la comunidad
-        // O filtrar por ApplicationUser.CommunityId si queremos ser conservadores (backfill)
         // El requerimiento dice: "Trae usuarios de esa comunidad que sean Resident (y opcionalmente Owner/Tenant si existen)"
         
         var query = _db.Users

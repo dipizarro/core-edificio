@@ -12,7 +12,7 @@ public static class IdentitySeeder
         AppDbContext db)
     {
         // 1. Roles
-        string[] roleNames = { "Admin", "Committee", "Resident" };
+        string[] roleNames = { AppRoles.Admin, AppRoles.Committee, AppRoles.Resident };
 
         foreach (var role in roleNames)
         {
@@ -32,7 +32,7 @@ public static class IdentitySeeder
             db,
             email: "admin@coreedificio.local",
             password: "Admin123!",
-            role: "Admin",
+            role: AppRoles.Admin,
             community.Id,
             unit.Id
         );
@@ -42,7 +42,7 @@ public static class IdentitySeeder
             db,
             email: "committee@coreedificio.local",
             password: "Committee123!",
-            role: "Committee",
+            role: AppRoles.Committee,
             community.Id,
             unit.Id
         );
@@ -52,7 +52,7 @@ public static class IdentitySeeder
             db,
             email: "resident@coreedificio.local",
             password: "Resident123!",
-            role: "Resident",
+            role: AppRoles.Resident,
             community.Id,
             unit.Id
         );
@@ -91,7 +91,7 @@ public static class IdentitySeeder
             UserId = user.Id,
             UnitId = unitId,
             CommunityId = communityId,
-            RelationshipType = role == "Resident" ? "Resident" : "Admin",
+            RelationshipType = role == AppRoles.Resident ? AppRoles.Resident : AppRoles.Admin,
             IsPrimary = true,
             CreatedAtUtc = DateTime.UtcNow
         };

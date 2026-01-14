@@ -12,13 +12,13 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
 {
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
-    public DbSet<Community> Communities => Set<Community>();
-    public DbSet<Unit> Units => Set<Unit>();
-    public DbSet<Expense> Expenses => Set<Expense>();
-    public DbSet<BillingPeriod> BillingPeriods => Set<BillingPeriod>();
-    public DbSet<UnitCharge> UnitCharges => Set<UnitCharge>();
-    public DbSet<Payment> Payments => Set<Payment>();
-    public DbSet<UserUnit> UserUnits => Set<UserUnit>();
+    public virtual DbSet<Community> Communities { get; set; } = null!;
+    public virtual DbSet<Unit> Units { get; set; } = null!;
+    public virtual DbSet<Expense> Expenses { get; set; } = null!;
+    public virtual DbSet<BillingPeriod> BillingPeriods { get; set; } = null!;
+    public virtual DbSet<UnitCharge> UnitCharges { get; set; } = null!;
+    public virtual DbSet<Payment> Payments { get; set; } = null!;
+    public virtual DbSet<UserUnit> UserUnits { get; set; } = null!;
 
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using CoreEdificio.Infrastructure.Persistence;
 using CoreEdificio.Domain.Entities;
 
@@ -20,6 +21,9 @@ public class UserProvisioningService
         _db = db;
     }
 
+    /// <summary>
+    /// Crea un usuario y le asigna un rol. El parámetro role es case-insensitive.
+    /// </summary>
     public async Task<ApplicationUser> CreateUserAsync(
         string email,
         string password,
@@ -27,10 +31,15 @@ public class UserProvisioningService
         Guid? communityId,
         Guid? unitId)
     {
-        if (!await _roles.RoleExistsAsync(role))
+        var normalizedRole = _roles.NormalizeKey(role.Trim());
+        var roleEntity = await _roles.Roles.SingleOrDefaultAsync(r => r.NormalizedName == normalizedRole);
+        
+        if (roleEntity is null)
             throw new InvalidOperationException($"Role '{role}' does not exist");
 
-        if (role == "Resident" && unitId is null)
+        var roleName = roleEntity.Name!;
+
+        if (string.Equals(roleName, AppRoles.Resident, StringComparison.OrdinalIgnoreCase) && unitId is null)
             throw new InvalidOperationException("Resident must have UnitId");
 
         var user = new ApplicationUser
@@ -47,17 +56,17 @@ public class UserProvisioningService
         if (!result.Succeeded)
             throw new InvalidOperationException(string.Join(" | ", result.Errors.Select(e => e.Description)));
 
-        await _users.AddToRoleAsync(user, role);
+        await _users.AddToRoleAsync(user, roleName);
 
         // Si es Residente y tiene UnitId, crear relación UserUnit
-        if (role == "Resident" && unitId.HasValue && communityId.HasValue)
+        if (string.Equals(roleName, AppRoles.Resident, StringComparison.OrdinalIgnoreCase) && unitId.HasValue && communityId.HasValue)
         {
             var userUnit = new UserUnit
             {
                 UserId = user.Id,
                 UnitId = unitId.Value,
                 CommunityId = communityId.Value,
-                RelationshipType = "Resident",
+                RelationshipType = AppRoles.Resident,
                 IsPrimary = true,
                 CreatedAtUtc = DateTime.UtcNow
             };
