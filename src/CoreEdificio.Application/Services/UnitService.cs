@@ -37,6 +37,16 @@ public class UnitService
             OwnerEmail = string.IsNullOrWhiteSpace(cmd.OwnerEmail) ? null : cmd.OwnerEmail.Trim()
         };
 
+        // Componente por defecto
+        unit.Components.Add(new UnitComponent
+        {
+            CommunityId = communityId,
+            UnitId = unit.Id,
+            Type = "Department",
+            Code = number,
+            CoefficientPct = cmd.CoefficientPct
+        });
+
         await _repo.AddAsync(unit, ct);
         return unit;
     }
@@ -117,6 +127,16 @@ public class UnitService
                 OwnerName = string.IsNullOrWhiteSpace(item.Cmd.OwnerName) ? null : item.Cmd.OwnerName.Trim(),
                 OwnerEmail = string.IsNullOrWhiteSpace(item.Cmd.OwnerEmail) ? null : item.Cmd.OwnerEmail.Trim()
             };
+
+            // Componente por defecto
+            unit.Components.Add(new UnitComponent
+            {
+                CommunityId = communityId,
+                UnitId = unit.Id,
+                Type = "Department",
+                Code = item.Number,
+                CoefficientPct = item.Cmd.CoefficientPct
+            });
 
             unitsToCreate.Add(unit);
             results.Add(new BulkItemResult<Unit>(item.Index, true, null, unit));

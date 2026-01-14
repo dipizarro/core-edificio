@@ -41,11 +41,25 @@ public class DevSeedController : ControllerBase
             ("101", 8.50m), ("102", 9.00m), ("103", 10.25m), ("104", 11.00m),
             ("201", 8.25m), ("202", 9.75m), ("203", 10.00m), ("204", 11.25m),
             ("301", 10.00m), ("302", 12.00m)
-        }.Select(u => new Unit
+        }.Select(u =>
         {
-            CommunityId = community.Id,
-            Number = u.Item1,
-            CoefficientPct = u.Item2
+            var unit = new Unit
+            {
+                CommunityId = community.Id,
+                Number = u.Item1,
+                CoefficientPct = u.Item2
+            };
+
+            unit.Components.Add(new UnitComponent
+            {
+                CommunityId = community.Id,
+                UnitId = unit.Id,
+                Type = "Department",
+                Code = u.Item1,
+                CoefficientPct = u.Item2
+            });
+
+            return unit;
         }).ToList();
 
         _db.Units.AddRange(units);

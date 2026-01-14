@@ -19,6 +19,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
     public virtual DbSet<UnitCharge> UnitCharges { get; set; } = null!;
     public virtual DbSet<Payment> Payments { get; set; } = null!;
     public virtual DbSet<UserUnit> UserUnits { get; set; } = null!;
+    public virtual DbSet<UnitComponent> UnitComponents { get; set; } = null!;
 
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -154,7 +155,23 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
             b.HasIndex(x => x.CommunityId);
         });
 
+        modelBuilder.Entity<UnitComponent>(b =>
+        {
+            b.ToTable("UnitComponents");
+            b.HasKey(x => x.Id);
 
+            b.Property(x => x.Type).HasMaxLength(50).IsRequired();
+            b.Property(x => x.Code).HasMaxLength(50).IsRequired();
+            b.Property(x => x.CoefficientPct).HasPrecision(7, 4).IsRequired();
+            b.Property(x => x.CreatedAtUtc).IsRequired();
 
+            b.HasOne(x => x.Unit)
+             .WithMany(u => u.Components)
+             .HasForeignKey(x => x.UnitId)
+             .OnDelete(DeleteBehavior.Cascade);
+
+            b.HasIndex(x => new { x.CommunityId, x.UnitId });
+            b.HasIndex(x => new { x.UnitId, x.Type, x.Code }).IsUnique();
+        });
     }
 }

@@ -15,4 +15,5 @@ public class Unit
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 
     public ICollection<UserUnit> UserUnits { get; set; } = new List<UserUnit>();
+    public ICollection<UnitComponent> Components { get; set; } = new List<UnitComponent>();
 }
