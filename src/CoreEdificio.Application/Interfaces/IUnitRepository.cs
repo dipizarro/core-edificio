@@ -12,4 +12,5 @@ public interface IUnitRepository
     Task AddRangeAsync(List<Unit> units, CancellationToken ct = default);
     Task<List<Unit>> ListByCommunityAsync(Guid communityId, CancellationToken ct = default);
     Task<(int Count, decimal TotalCoefficientPct)> GetCoefficientSummaryAsync(Guid communityId, CancellationToken ct = default);
+    Task<HashSet<string>> GetExistingComponentKeysAsync(Guid communityId, IEnumerable<string> keys, CancellationToken ct = default);
 }

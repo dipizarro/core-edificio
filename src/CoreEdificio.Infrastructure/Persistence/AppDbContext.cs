@@ -172,6 +172,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
 
             b.HasIndex(x => new { x.CommunityId, x.UnitId });
             b.HasIndex(x => new { x.UnitId, x.Type, x.Code }).IsUnique();
+            b.HasIndex(x => new { x.CommunityId, x.Type, x.Code }).IsUnique();
         });
     }
 }

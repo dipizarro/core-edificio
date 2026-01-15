@@ -49,4 +49,15 @@ public class UnitRepository : IUnitRepository
         var total = await _db.Units.Where(x => x.CommunityId == communityId).SumAsync(x => x.CoefficientPct, ct);
         return (count, total);
     }
+
+    public async Task<HashSet<string>> GetExistingComponentKeysAsync(Guid communityId, IEnumerable<string> keys, CancellationToken ct = default)
+    {
+        var existing = await _db.UnitComponents
+            .Where(x => x.CommunityId == communityId)
+            .Select(x => x.Type + "|" + x.Code)
+            .Where(k => keys.Contains(k))
+            .ToListAsync(ct);
+
+        return existing.ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
 }

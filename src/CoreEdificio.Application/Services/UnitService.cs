@@ -3,6 +3,7 @@ using CoreEdificio.Application.Contracts;
 using CoreEdificio.Application.Contracts.Bulk;
 using CoreEdificio.Application.Interfaces;
 using CoreEdificio.Domain.Entities;
+using Microsoft.EntityFrameworkCore;
 
 namespace CoreEdificio.Application.Services;
 
@@ -56,6 +57,7 @@ public class UnitService
 
     public Task<(int Count, decimal TotalCoefficientPct)> GetCoefficientSummaryAsync(Guid communityId, CancellationToken ct = default)
         => _repo.GetCoefficientSummaryAsync(communityId, ct);
+
     public async Task<BulkResponse<UnitResponseDto>> CreateBulkAsync(Guid communityId, CreateUnitsBulkCommand bulk, CancellationToken ct = default)
     {
         if (!await _repo.CommunityExistsAsync(communityId, ct))
@@ -151,19 +153,22 @@ public class UnitService
             return new BulkResponse<UnitResponseDto>(communityId, 0, 0, 0, results);
         }
 
-        // 1. Detección de duplicados en el request (UnitNumber)
-        var duplicatesInRequest = bulk.Units
-            .GroupBy(x => x.UnitNumber.Trim(), StringComparer.OrdinalIgnoreCase)
-            .Where(g => g.Count() > 1)
-            .Select(g => g.Key)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        var requestNumbers = bulk.Units.Select(x => x.UnitNumber.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToHashSet();
-
-        // 2. Consultar existentes en DB
+        // 1. Detección de duplicados de UnitNumber
+        var requestNumbers = bulk.Units.Select(x => x.UnitNumber?.Trim() ?? "").Where(x => !string.IsNullOrEmpty(x)).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var existingNumbers = await _repo.GetExistingUnitNumbersAsync(communityId, requestNumbers, ct);
 
-        // 3. Procesar cada item
+        // 2. Detección de duplicados de COMPONENTES en el request (Global)
+        var allRequestComponents = bulk.Units
+            .SelectMany(u => u.Components ?? new List<CreateUnitComponentDto>())
+            .GroupBy(c => $"{c.Type?.Trim()}|{c.Code?.Trim()}", StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.Count(), StringComparer.OrdinalIgnoreCase);
+
+        var componentsSharedInRequest = allRequestComponents.Where(x => x.Value > 1).Select(x => x.Key).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        // 3. Consultar componentes existentes en DB
+        var existingComponentKeys = await _repo.GetExistingComponentKeysAsync(communityId, allRequestComponents.Keys, ct);
+
+        // 4. Procesar cada item
         var seenNumbers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         for (int i = 0; i < bulk.Units.Count; i++)
@@ -196,11 +201,11 @@ public class UnitService
                 continue;
             }
 
-            // Validar componentes internos
-            var componentsResult = ValidateComponents(item.Components);
-            if (!componentsResult.Success)
+            // Validar componentes internos y colisiones globales/DB
+            var compValidation = ValidateUnitComponents(item.Components, componentsSharedInRequest, existingComponentKeys);
+            if (!compValidation.Success)
             {
-                results.Add(new BulkItemResult<UnitResponseDto>(i, false, componentsResult.Error, null));
+                results.Add(new BulkItemResult<UnitResponseDto>(i, false, compValidation.Error, null));
                 continue;
             }
 
@@ -234,7 +239,15 @@ public class UnitService
 
         if (unitsToCreate.Count > 0)
         {
-            await _repo.AddRangeAsync(unitsToCreate, ct);
+            try
+            {
+                await _repo.AddRangeAsync(unitsToCreate, ct);
+            }
+            catch (DbUpdateException)
+            {
+                // Fallback por concurrencia
+                return HandlePersistenceError(communityId, bulk, results);
+            }
         }
 
         return new BulkResponse<UnitResponseDto>(communityId, bulk.Units.Count, unitsToCreate.Count, bulk.Units.Count - unitsToCreate.Count, results);
@@ -250,9 +263,12 @@ public class UnitService
         );
     }
 
-    private (bool Success, string? Error) ValidateComponents(List<CreateUnitComponentDto> components)
+    private (bool Success, string? Error) ValidateUnitComponents(
+        List<CreateUnitComponentDto> components, 
+        HashSet<string> sharedInRequest, 
+        HashSet<string> existingInDb)
     {
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var unitSeen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var c in components)
         {
             if (string.IsNullOrWhiteSpace(c.Type) || string.IsNullOrWhiteSpace(c.Code))
@@ -262,11 +278,27 @@ public class UnitService
                 return (false, $"Component '{c.Type} {c.Code}' must have a CoefficientPct > 0");
 
             var key = $"{c.Type.Trim()}|{c.Code.Trim()}";
-            if (seen.Contains(key))
+            
+            if (unitSeen.Contains(key))
                 return (false, $"Duplicate component '{c.Type} {c.Code}' in the same unit");
+            unitSeen.Add(key);
 
-            seen.Add(key);
+            if (sharedInRequest.Contains(key))
+                return (false, $"Duplicated component in request: {c.Type} {c.Code} is assigned to multiple units");
+
+            if (existingInDb.Contains(key))
+                return (false, $"Component already assigned in community: {c.Type} {c.Code}");
         }
         return (true, null);
+    }
+
+    private BulkResponse<UnitResponseDto> HandlePersistenceError(Guid communityId, CreateUnitsWithComponentsBulkCommand bulk, List<BulkItemResult<UnitResponseDto>> results)
+    {
+        foreach (var res in results.Where(x => x.Success).ToList())
+        {
+            results[res.Index] = new BulkItemResult<UnitResponseDto>(res.Index, false, "Database constraint violation (possible concurrent component assignment)", null);
+        }
+        
+        return new BulkResponse<UnitResponseDto>(communityId, bulk.Units.Count, 0, bulk.Units.Count, results);
     }
 }

@@ -41,6 +41,8 @@ public class UnitBulkWithComponentsTests
         _repoMock.Setup(x => x.CommunityExistsAsync(communityId, It.IsAny<CancellationToken>())).ReturnsAsync(true);
         _repoMock.Setup(x => x.GetExistingUnitNumbersAsync(communityId, It.IsAny<HashSet<string>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new HashSet<string>());
+        _repoMock.Setup(x => x.GetExistingComponentKeysAsync(communityId, It.IsAny<IEnumerable<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new HashSet<string>());
 
         // Act
         var result = await _service.CreateBulkWithComponentsAsync(communityId, command);
@@ -71,14 +73,18 @@ public class UnitBulkWithComponentsTests
         _repoMock.Setup(x => x.CommunityExistsAsync(communityId, It.IsAny<CancellationToken>())).ReturnsAsync(true);
         _repoMock.Setup(x => x.GetExistingUnitNumbersAsync(communityId, It.IsAny<HashSet<string>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new HashSet<string>());
+        _repoMock.Setup(x => x.GetExistingComponentKeysAsync(communityId, It.IsAny<IEnumerable<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new HashSet<string>());
 
         // Act
         var result = await _service.CreateBulkWithComponentsAsync(communityId, command);
 
         // Assert
-        Assert.Equal(1, result.Created);
-        Assert.Equal(1, result.Failed);
-        Assert.Contains("Duplicate", result.Results[1].Error);
+        Assert.Equal(0, result.Created);
+        Assert.Equal(2, result.Failed);
+        // El primero falla por componente compartido, el segundo por UnitNumber duplicado (que se chequea antes)
+        Assert.Contains("is assigned to multiple units", result.Results[0].Error);
+        Assert.Contains("Duplicate UnitNumber", result.Results[1].Error);
     }
 
     [Fact]
@@ -97,6 +103,8 @@ public class UnitBulkWithComponentsTests
 
         _repoMock.Setup(x => x.CommunityExistsAsync(communityId, It.IsAny<CancellationToken>())).ReturnsAsync(true);
         _repoMock.Setup(x => x.GetExistingUnitNumbersAsync(communityId, It.IsAny<HashSet<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new HashSet<string>());
+        _repoMock.Setup(x => x.GetExistingComponentKeysAsync(communityId, It.IsAny<IEnumerable<string>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new HashSet<string>());
 
         // Act
@@ -123,6 +131,8 @@ public class UnitBulkWithComponentsTests
         _repoMock.Setup(x => x.CommunityExistsAsync(communityId, It.IsAny<CancellationToken>())).ReturnsAsync(true);
         _repoMock.Setup(x => x.GetExistingUnitNumbersAsync(communityId, It.IsAny<HashSet<string>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "101" });
+        _repoMock.Setup(x => x.GetExistingComponentKeysAsync(communityId, It.IsAny<IEnumerable<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new HashSet<string>());
 
         // Act
         var result = await _service.CreateBulkWithComponentsAsync(communityId, command);
@@ -132,5 +142,59 @@ public class UnitBulkWithComponentsTests
         Assert.Equal(1, result.Failed);
         Assert.Contains("already exists", result.Results[0].Error);
         Assert.True(result.Results[1].Success);
+    }
+
+    [Fact]
+    public async Task CreateBulkWithComponentsAsync_ShouldFail_WhenComponentIsSharedInRequest()
+    {
+        // Arrange
+        var communityId = Guid.NewGuid();
+        var units = new List<CreateUnitWithComponentsDto>
+        {
+            new("101", new List<CreateUnitComponentDto> { new("Parking", "E1", 1.0m) }),
+            new("102", new List<CreateUnitComponentDto> { new("Parking", "E1", 1.0m) }) // Global duplicate in request
+        };
+        var command = new CreateUnitsWithComponentsBulkCommand(communityId, units);
+
+        _repoMock.Setup(x => x.CommunityExistsAsync(communityId, It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        _repoMock.Setup(x => x.GetExistingUnitNumbersAsync(communityId, It.IsAny<HashSet<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new HashSet<string>());
+        _repoMock.Setup(x => x.GetExistingComponentKeysAsync(communityId, It.IsAny<IEnumerable<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new HashSet<string>());
+
+        // Act
+        var result = await _service.CreateBulkWithComponentsAsync(communityId, command);
+
+        // Assert
+        Assert.Equal(0, result.Created);
+        Assert.Equal(2, result.Failed);
+        Assert.Contains("is assigned to multiple units", result.Results[0].Error);
+        Assert.Contains("is assigned to multiple units", result.Results[1].Error);
+    }
+
+    [Fact]
+    public async Task CreateBulkWithComponentsAsync_ShouldFail_WhenComponentAlreadyInDB()
+    {
+        // Arrange
+        var communityId = Guid.NewGuid();
+        var units = new List<CreateUnitWithComponentsDto>
+        {
+            new("303", new List<CreateUnitComponentDto> { new("Parking", "E-100", 1.0m) })
+        };
+        var command = new CreateUnitsWithComponentsBulkCommand(communityId, units);
+
+        _repoMock.Setup(x => x.CommunityExistsAsync(communityId, It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        _repoMock.Setup(x => x.GetExistingUnitNumbersAsync(communityId, It.IsAny<HashSet<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new HashSet<string>());
+        _repoMock.Setup(x => x.GetExistingComponentKeysAsync(communityId, It.IsAny<IEnumerable<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new HashSet<string> { "Parking|E-100" });
+
+        // Act
+        var result = await _service.CreateBulkWithComponentsAsync(communityId, command);
+
+        // Assert
+        Assert.Equal(0, result.Created);
+        Assert.Equal(1, result.Failed);
+        Assert.Contains("Component already assigned", result.Results[0].Error);
     }
 }
