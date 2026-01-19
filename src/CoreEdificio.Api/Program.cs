@@ -11,6 +11,7 @@ using CoreEdificio.Infrastructure.Persistence;
 using CoreEdificio.Infrastructure.Repositories;
 using CoreEdificio.Infrastructure.Repositories.Billing;
 using CoreEdificio.Infrastructure.Repositories.Payments;
+using CoreEdificio.Infrastructure.Services.Billing;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -79,6 +80,7 @@ builder.Services.AddScoped<BillingService>();
 builder.Services.AddScoped<CommunityService>();
 builder.Services.AddScoped<UnitService>();
 builder.Services.AddScoped<JwtTokenService>();
+builder.Services.AddScoped<IStatementPdfGenerator, QuestStatementPdfGenerator>();
 
 /********** AUTH **********/
 builder.Services
