@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Identity;
+﻿using System.Linq;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using CoreEdificio.Infrastructure.Persistence;
 using CoreEdificio.Domain.Entities;
@@ -32,7 +33,7 @@ public class UserProvisioningService
         Guid? unitId)
     {
         var normalizedRole = _roles.NormalizeKey(role.Trim());
-        var roleEntity = await _roles.Roles.SingleOrDefaultAsync(r => r.NormalizedName == normalizedRole);
+        var roleEntity = _roles.Roles.SingleOrDefault(r => r.NormalizedName == normalizedRole);
         
         if (roleEntity is null)
             throw new InvalidOperationException($"Role '{role}' does not exist");

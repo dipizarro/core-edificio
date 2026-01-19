@@ -10,5 +10,7 @@ public record UnitStatementDto(
     decimal PaymentsTotal,
     decimal TotalDue,
     DateTime DueDate,
+    decimal UnitTotalCoefficientPct,
+    List<UnitComponentDto> Components,
     List<StatementLineDto> Lines
 );

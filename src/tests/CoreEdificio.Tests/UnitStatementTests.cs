@@ -51,7 +51,7 @@ public class UnitStatementTests
 
         // Setup Unit
         _units.Setup(x => x.ListSnapshotsByCommunityAsync(communityId, It.IsAny<CancellationToken>()))
-              .ReturnsAsync(new List<UnitSnapshot> { new UnitSnapshot(unitId, "101", 10m) });
+              .ReturnsAsync(new List<UnitSnapshot> { new UnitSnapshot(unitId, "101", 10m, new List<UnitComponentSnapshot>()) });
 
         // Setup Charges Before: 1000
         _charges.Setup(x => x.GetChargesBeforePeriodAsync(communityId, unitId, period, It.IsAny<CancellationToken>()))
@@ -84,7 +84,7 @@ public class UnitStatementTests
         var period = "2024-02";
 
         _units.Setup(x => x.ListSnapshotsByCommunityAsync(communityId, It.IsAny<CancellationToken>()))
-              .ReturnsAsync(new List<UnitSnapshot> { new UnitSnapshot(unitId, "101", 10m) });
+              .ReturnsAsync(new List<UnitSnapshot> { new UnitSnapshot(unitId, "101", 10m, new List<UnitComponentSnapshot>()) });
 
         // Charges: 1000
         _charges.Setup(x => x.GetChargesBeforePeriodAsync(communityId, unitId, period, It.IsAny<CancellationToken>()))
@@ -116,7 +116,7 @@ public class UnitStatementTests
         var period = "2024-02";
 
         _units.Setup(x => x.ListSnapshotsByCommunityAsync(communityId, It.IsAny<CancellationToken>()))
-              .ReturnsAsync(new List<UnitSnapshot> { new UnitSnapshot(unitId, "101", 10m) });
+              .ReturnsAsync(new List<UnitSnapshot> { new UnitSnapshot(unitId, "101", 10m, new List<UnitComponentSnapshot>()) });
 
         // Previous Balance: 0
         _charges.Setup(x => x.GetChargesBeforePeriodAsync(communityId, unitId, period, It.IsAny<CancellationToken>()))
@@ -143,5 +143,43 @@ public class UnitStatementTests
         Assert.Equal(500m, result.CurrentChargesTotal);
         Assert.Equal(200m, result.PaymentsTotal);
         Assert.Equal(300m, result.TotalDue); // 0 + 500 - 200
+    }
+
+    [Fact]
+    public async Task GetUnitStatement_ShouldIncludeComponentsAndTotalCoefficient()
+    {
+        // Arrange
+        var communityId = Guid.NewGuid();
+        var unitId = Guid.NewGuid();
+        var period = "2024-02";
+
+        var components = new List<UnitComponentSnapshot>
+        {
+            new UnitComponentSnapshot("Department", "101", 8.5m, true),
+            new UnitComponentSnapshot("Parking", "P-1", 1.5m, true),
+            new UnitComponentSnapshot("Storage", "B-1", 0.5m, false)
+        };
+
+        _units.Setup(x => x.ListSnapshotsByCommunityAsync(communityId, It.IsAny<CancellationToken>()))
+              .ReturnsAsync(new List<UnitSnapshot> { new UnitSnapshot(unitId, "101", 10.0m, components) });
+
+        _charges.Setup(x => x.GetChargesBeforePeriodAsync(communityId, unitId, period, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new List<UnitCharge>());
+        _payments.Setup(x => x.GetPaymentsBeforePeriodAsync(communityId, unitId, period, It.IsAny<CancellationToken>()))
+                 .ReturnsAsync(new List<Payment>());
+        _charges.Setup(x => x.GetChargesForPeriodAsync(communityId, unitId, period, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new List<UnitCharge>());
+        _payments.Setup(x => x.GetPaymentsForPeriodAsync(communityId, unitId, period, It.IsAny<CancellationToken>()))
+                 .ReturnsAsync(new List<Payment>());
+
+        // Act
+        var result = await _service.GetUnitStatementAsync(communityId, unitId, period, CancellationToken.None);
+
+        // Assert
+        Assert.Equal(10.0m, result.UnitTotalCoefficientPct);
+        Assert.Equal(3, result.Components.Count);
+        Assert.Contains(result.Components, x => x.Type == "Department" && x.CoefficientPct == 8.5m);
+        Assert.Contains(result.Components, x => x.Type == "Parking" && x.CoefficientPct == 1.5m);
+        Assert.Contains(result.Components, x => x.Type == "Storage" && x.CoefficientPct == 0.5m && !x.IsActive);
     }
 }

@@ -17,6 +17,11 @@ public class UnitReadRepository : IUnitReadRepository
             .OrderBy(x => x.Number)
             .ToListAsync(ct);
 
-        return units.Select(x => new UnitSnapshot(x.Id, x.Number, x.GetTotalCoefficientPct())).ToList();
+        return units.Select(x => new UnitSnapshot(
+            x.Id, 
+            x.Number, 
+            x.GetTotalCoefficientPct(),
+            x.Components.Select(c => new UnitComponentSnapshot(c.Type, c.Code, c.CoefficientPct, c.IsActive)).ToList()
+        )).ToList();
     }
 }

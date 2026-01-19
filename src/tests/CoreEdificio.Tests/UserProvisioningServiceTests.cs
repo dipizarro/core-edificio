@@ -40,7 +40,11 @@ public class UserProvisioningServiceTests
 
             ApplicationUser? createdUser = null;
             userManager.Setup(x => x.CreateAsync(It.IsAny<ApplicationUser>(), It.IsAny<string>()))
-                .Callback<ApplicationUser, string>((u, p) => createdUser = u)
+                .Callback<ApplicationUser, string>((u, p) => {
+                    createdUser = u;
+                    db.Users.Add(u);
+                    db.SaveChanges();
+                })
                 .ReturnsAsync(IdentityResult.Success);
             
             userManager.Setup(x => x.AddToRoleAsync(It.IsAny<ApplicationUser>(), It.IsAny<string>()))
@@ -48,9 +52,16 @@ public class UserProvisioningServiceTests
 
             var service = new UserProvisioningService(userManager.Object, roleManager.Object, db);
             
-            var email = "test@resident.com";
             var communityId = Guid.NewGuid();
             var unitId = Guid.NewGuid();
+
+            var community = new Community { Id = communityId, Name = "Test Community", Address = "123 St" };
+            var unit = new Unit { Id = unitId, CommunityId = communityId, Number = "101" };
+            db.Communities.Add(community);
+            db.Units.Add(unit);
+            await db.SaveChangesAsync();
+
+            var email = "test@resident.com";
 
             // Act
             var user = await service.CreateUserAsync(email, "Pass123!", "reSidenT", communityId, unitId);

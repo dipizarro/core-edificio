@@ -97,6 +97,6 @@ public class BillingProrationCalculatorTests
 
     private static List<UnitSnapshot> BuildUnits(params (string number, decimal coefPct)[] defs)
     {
-        return defs.Select(d => new UnitSnapshot(Guid.NewGuid(), d.number, d.coefPct)).ToList();
+        return defs.Select(d => new UnitSnapshot(Guid.NewGuid(), d.number, d.coefPct, new List<UnitComponentSnapshot>())).ToList();
     }
 }

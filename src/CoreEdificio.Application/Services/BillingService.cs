@@ -386,6 +386,8 @@ public class BillingService
             PaymentsTotal: paymentsTotal,
             TotalDue: totalDue,
             DueDate: dueDate,
+            UnitTotalCoefficientPct: unit.CoefficientPct,
+            Components: unit.Components.Select(c => new UnitComponentDto(c.Type, c.Code, c.CoefficientPct, c.IsActive)).ToList(),
             Lines: lines
         );
     }
