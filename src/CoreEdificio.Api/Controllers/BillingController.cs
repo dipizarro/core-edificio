@@ -2,6 +2,7 @@
 using CoreEdificio.Application.Contracts.Billing;
 using CoreEdificio.Application.Contracts.Billing.Bulk;
 using CoreEdificio.Application.Services;
+using CoreEdificio.Application.Interfaces.Billing;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -15,10 +16,13 @@ public class BillingController : ControllerBase
 {
     private readonly BillingService _billing;
     private readonly PaymentsService _payments;
-    public BillingController(BillingService billing, PaymentsService payments)
+    private readonly IStatementPdfGenerator _pdfGenerator;
+
+    public BillingController(BillingService billing, PaymentsService payments, IStatementPdfGenerator pdfGenerator)
     {
         _billing = billing;
         _payments = payments;
+        _pdfGenerator = pdfGenerator;
     }
 
 
@@ -90,4 +94,34 @@ public class BillingController : ControllerBase
         return Ok(statement);
     }
 
+    /// <summary>
+    /// Descarga estado de cuenta de una unidad en PDF (Admin/Committee)
+    /// </summary>
+    [HttpGet("units/{unitId:guid}/statement/{period}/pdf")]
+    public async Task<IActionResult> GetStatementPdf(Guid communityId, Guid unitId, string period, CancellationToken ct)
+    {
+        var statement = await _billing.GetUnitStatementAsync(communityId, unitId, period, ct);
+        var pdfBytes = await _pdfGenerator.GenerateUnitStatementPdfAsync(statement, ct);
+        var filename = $"CoreEdificio_Statement_{statement.UnitNumber}_{period}.pdf";
+        return File(pdfBytes, "application/pdf", filename);
+    }
+
+    /// <summary>
+    /// Descarga MI estado de cuenta en PDF (Resident)
+    /// </summary>
+    [HttpGet("my-statement/{period}/pdf")]
+    [Authorize(Roles = "Resident")]
+    public async Task<IActionResult> GetMyStatementPdf(Guid communityId, string period, CancellationToken ct)
+    {
+        var unitIdClaim = User.FindFirst("UnitId")?.Value;
+        if (string.IsNullOrEmpty(unitIdClaim) || !Guid.TryParse(unitIdClaim, out var unitId))
+        {
+            return Forbid();
+        }
+
+        var statement = await _billing.GetUnitStatementAsync(communityId, unitId, period, ct);
+        var pdfBytes = await _pdfGenerator.GenerateUnitStatementPdfAsync(statement, ct);
+        var filename = $"CoreEdificio_Statement_{statement.UnitNumber}_{period}.pdf";
+        return File(pdfBytes, "application/pdf", filename);
+    }
 }
