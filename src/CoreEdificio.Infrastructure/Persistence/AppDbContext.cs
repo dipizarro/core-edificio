@@ -20,6 +20,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
     public virtual DbSet<Payment> Payments { get; set; } = null!;
     public virtual DbSet<UserUnit> UserUnits { get; set; } = null!;
     public virtual DbSet<UnitComponent> UnitComponents { get; set; } = null!;
+    public virtual DbSet<Facility> Facilities { get; set; } = null!;
 
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -173,6 +174,28 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
             b.HasIndex(x => new { x.CommunityId, x.UnitId });
             b.HasIndex(x => new { x.UnitId, x.Type, x.Code }).IsUnique();
             b.HasIndex(x => new { x.CommunityId, x.Type, x.Code }).IsUnique();
+        });
+
+        modelBuilder.Entity<Facility>(b =>
+        {
+            b.ToTable("Facilities");
+            b.HasKey(x => x.Id);
+
+            b.Property(x => x.CommunityId).IsRequired();
+            b.Property(x => x.Name).HasMaxLength(200).IsRequired();
+            b.Property(x => x.Description).HasMaxLength(500);
+            b.Property(x => x.IsActive).IsRequired();
+            b.Property(x => x.Capacity);
+            b.Property(x => x.ChargingMode).HasConversion<string>().HasMaxLength(20).IsRequired();
+            b.Property(x => x.RentAmountClp).IsRequired();
+            b.Property(x => x.DepositAmountClp).IsRequired();
+            b.Property(x => x.RequiresApproval).IsRequired();
+            b.Property(x => x.SlotDurationMinutes).IsRequired();
+            b.Property(x => x.MaxHoursPerBooking);
+            b.Property(x => x.MaxBookingsPerMonthPerUnit);
+            b.Property(x => x.CreatedAtUtc).IsRequired();
+
+            b.HasIndex(x => new { x.CommunityId, x.Name }).IsUnique();
         });
     }
 }

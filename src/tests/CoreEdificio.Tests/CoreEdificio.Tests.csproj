@@ -22,6 +22,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\CoreEdificio.Application\CoreEdificio.Application.csproj" />
+    <ProjectReference Include="..\..\CoreEdificio.Api\CoreEdificio.Api.csproj" />
     <ProjectReference Include="..\..\CoreEdificio.Infrastructure\CoreEdificio.Infrastructure.csproj" />
   </ItemGroup>
 

@@ -24,6 +24,39 @@ public static class IdentitySeeder
         var community = await db.Communities.FirstOrDefaultAsync();
         if (community == null) return;
 
+        if (!await db.Facilities.AnyAsync(f => f.CommunityId == community.Id))
+        {
+            db.Facilities.AddRange(
+                new CoreEdificio.Domain.Entities.Facility
+                {
+                    CommunityId = community.Id,
+                    Name = "Quincho",
+                    Description = "Espacio para asados y reuniones.",
+                    IsActive = true,
+                    ChargingMode = CoreEdificio.Domain.Entities.FacilityChargingMode.PaidAndDeposit,
+                    RentAmountClp = 30000,
+                    DepositAmountClp = 50000,
+                    RequiresApproval = true,
+                    SlotDurationMinutes = 60,
+                    CreatedAtUtc = DateTime.UtcNow
+                },
+                new CoreEdificio.Domain.Entities.Facility
+                {
+                    CommunityId = community.Id,
+                    Name = "Sala Reuniones",
+                    Description = "Espacio multiuso para reuniones.",
+                    IsActive = true,
+                    ChargingMode = CoreEdificio.Domain.Entities.FacilityChargingMode.Free,
+                    RentAmountClp = 0,
+                    DepositAmountClp = 0,
+                    RequiresApproval = false,
+                    SlotDurationMinutes = 60,
+                    CreatedAtUtc = DateTime.UtcNow
+                });
+
+            await db.SaveChangesAsync();
+        }
+
         var unit = await db.Units.FirstOrDefaultAsync();
         if (unit == null) return;
 
