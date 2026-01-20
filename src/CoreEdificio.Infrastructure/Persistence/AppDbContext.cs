@@ -20,6 +20,8 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
     public virtual DbSet<Payment> Payments { get; set; } = null!;
     public virtual DbSet<UserUnit> UserUnits { get; set; } = null!;
     public virtual DbSet<UnitComponent> UnitComponents { get; set; } = null!;
+    public virtual DbSet<Facility> Facilities { get; set; } = null!;
+    public virtual DbSet<Booking> Bookings { get; set; } = null!;
 
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -173,6 +175,61 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
             b.HasIndex(x => new { x.CommunityId, x.UnitId });
             b.HasIndex(x => new { x.UnitId, x.Type, x.Code }).IsUnique();
             b.HasIndex(x => new { x.CommunityId, x.Type, x.Code }).IsUnique();
+        });
+
+        modelBuilder.Entity<Facility>(b =>
+        {
+            b.ToTable("Facilities");
+            b.HasKey(x => x.Id);
+
+            b.Property(x => x.CommunityId).IsRequired();
+            b.Property(x => x.Name).HasMaxLength(200).IsRequired();
+            b.Property(x => x.Description).HasMaxLength(500);
+            b.Property(x => x.IsActive).IsRequired();
+            b.Property(x => x.Capacity);
+            b.Property(x => x.ChargingMode).HasConversion<string>().HasMaxLength(20).IsRequired();
+            b.Property(x => x.RentAmountClp).IsRequired();
+            b.Property(x => x.DepositAmountClp).IsRequired();
+            b.Property(x => x.RequiresApproval).IsRequired();
+            b.Property(x => x.SlotDurationMinutes).IsRequired();
+            b.Property(x => x.MaxHoursPerBooking);
+            b.Property(x => x.MaxBookingsPerMonthPerUnit);
+            b.Property(x => x.CreatedAtUtc).IsRequired();
+
+            b.HasIndex(x => new { x.CommunityId, x.Name }).IsUnique();
+        });
+
+        modelBuilder.Entity<Booking>(b =>
+        {
+            b.ToTable("Bookings");
+            b.HasKey(x => x.Id);
+
+            b.Property(x => x.CommunityId).IsRequired();
+            b.Property(x => x.FacilityId).IsRequired();
+            b.Property(x => x.UnitId).IsRequired();
+            b.Property(x => x.CreatedByUserId).IsRequired();
+            b.Property(x => x.StartAtUtc).IsRequired();
+            b.Property(x => x.EndAtUtc).IsRequired();
+            b.Property(x => x.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
+            b.Property(x => x.Notes).HasMaxLength(500);
+            b.Property(x => x.CreatedAtUtc).IsRequired();
+            b.Property(x => x.ApprovedAtUtc);
+            b.Property(x => x.ApprovedByUserId);
+            b.Property(x => x.RejectReason).HasMaxLength(500);
+            b.Property(x => x.CancelledAtUtc);
+            b.Property(x => x.CancelReason).HasMaxLength(500);
+
+            b.HasOne<Facility>()
+                .WithMany()
+                .HasForeignKey(x => x.FacilityId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            b.HasOne<Unit>()
+                .WithMany()
+                .HasForeignKey(x => x.UnitId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            b.HasIndex(x => new { x.CommunityId, x.FacilityId, x.StartAtUtc, x.EndAtUtc });
         });
     }
 }

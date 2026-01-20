@@ -1,0 +1,43 @@
+namespace CoreEdificio.Domain.Entities;
+
+public class Facility
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid CommunityId { get; set; }
+    public string Name { get; set; } = null!;
+    public string? Description { get; set; }
+    public bool IsActive { get; set; } = true;
+    public int? Capacity { get; set; }
+    public FacilityChargingMode ChargingMode { get; set; }
+    public int RentAmountClp { get; set; }
+    public int DepositAmountClp { get; set; }
+    public bool RequiresApproval { get; set; }
+    public int SlotDurationMinutes { get; set; }
+    public int? MaxHoursPerBooking { get; set; }
+    public int? MaxBookingsPerMonthPerUnit { get; set; }
+    public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+
+    public void Validate()
+    {
+        if (string.IsNullOrWhiteSpace(Name))
+            throw new InvalidOperationException("Facility name is required.");
+
+        if (SlotDurationMinutes <= 0)
+            throw new InvalidOperationException("Slot duration must be greater than zero.");
+
+        var requiresRent = ChargingMode is FacilityChargingMode.Paid or FacilityChargingMode.PaidAndDeposit;
+        var requiresDeposit = ChargingMode is FacilityChargingMode.Deposit or FacilityChargingMode.PaidAndDeposit;
+
+        if (requiresRent && RentAmountClp <= 0)
+            throw new InvalidOperationException("Rent amount must be greater than zero for paid facilities.");
+
+        if (requiresDeposit && DepositAmountClp <= 0)
+            throw new InvalidOperationException("Deposit amount must be greater than zero for deposit-based facilities.");
+
+        if (ChargingMode == FacilityChargingMode.Free)
+        {
+            if (RentAmountClp != 0 || DepositAmountClp != 0)
+                throw new InvalidOperationException("Free facilities must have zero rent and deposit amounts.");
+        }
+    }
+}
