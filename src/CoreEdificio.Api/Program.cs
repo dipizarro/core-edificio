@@ -61,6 +61,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 /********** DI registrations **********/
 builder.Services.AddScoped<ICommunityRepository, CommunityRepository>();
 builder.Services.AddScoped<IUnitRepository, UnitRepository>();
+builder.Services.AddScoped<IBookingRepository, BookingRepository>();
 builder.Services.AddScoped<IExpenseRepository, ExpenseRepository>();
 builder.Services.AddScoped<IBillingPeriodRepository, BillingPeriodRepository>();
 builder.Services.AddScoped<IUnitChargeRepository, UnitChargeRepository>();
@@ -79,6 +80,7 @@ builder.Services.AddScoped<PaymentsService>();
 builder.Services.AddScoped<BillingService>();
 builder.Services.AddScoped<CommunityService>();
 builder.Services.AddScoped<UnitService>();
+builder.Services.AddScoped<BookingService>();
 builder.Services.AddScoped<JwtTokenService>();
 builder.Services.AddScoped<IStatementPdfGenerator, QuestStatementPdfGenerator>();
 
