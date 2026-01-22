@@ -5,6 +5,8 @@ using CoreEdificio.Api.Controllers;
 using CoreEdificio.Application.Services;
 using CoreEdificio.Infrastructure.Persistence;
 using CoreEdificio.Infrastructure.Repositories;
+using CoreEdificio.Infrastructure.Repositories.Billing;
+using CoreEdificio.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.Sqlite;
@@ -18,7 +20,7 @@ public class BookingsControllerTests
     public async Task ResidentBookingForOtherUnit_ReturnsForbid()
     {
         await using var db = await CreateDbAsync();
-        var service = new BookingService(new BookingRepository(db));
+        var service = new BookingService(new BookingRepository(db), new ChargeRepository(db), new UnitOfWork(db));
         var controller = new BookingsController(service, db);
 
         var residentUnitId = Guid.NewGuid();

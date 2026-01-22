@@ -16,5 +16,6 @@ public class Booking
     public Guid? ApprovedByUserId { get; set; }
     public string? RejectReason { get; set; }
     public DateTime? CancelledAtUtc { get; set; }
+    public Guid? CancelledByUserId { get; set; }
     public string? CancelReason { get; set; }
 }

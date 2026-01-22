@@ -30,7 +30,15 @@ public class BulkOperationsTests
     public BulkOperationsTests()
     {
         _unitService = new UnitService(_unitRepo.Object);
-        _billingService = new BillingService(_expenses.Object, _periods.Object, _charges.Object, _unitRead.Object, new Mock<IPaymentRepository>().Object, _uow.Object, new Mock<IConfiguration>().Object);
+        _billingService = new BillingService(
+            _expenses.Object, 
+            _periods.Object, 
+            _charges.Object, 
+            new Mock<IChargeRepository>().Object,
+            _unitRead.Object, 
+            new Mock<IPaymentRepository>().Object, 
+            _uow.Object, 
+            new Mock<IConfiguration>().Object);
     }
 
     [Fact]

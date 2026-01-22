@@ -17,6 +17,7 @@ public class BillingService
     private readonly IExpenseRepository _expenses;
     private readonly IBillingPeriodRepository _periods;
     private readonly IUnitChargeRepository _charges;
+    private readonly IChargeRepository _manualCharges;
     private readonly IUnitReadRepository _units;
     private readonly IPaymentRepository _payments;
     private readonly IUnitOfWork _uow;
@@ -26,6 +27,7 @@ public class BillingService
         IExpenseRepository expenses,
         IBillingPeriodRepository periods,
         IUnitChargeRepository charges,
+        IChargeRepository manualCharges,
         IUnitReadRepository units,
         IPaymentRepository payments,
         IUnitOfWork uow,
@@ -34,6 +36,7 @@ public class BillingService
         _expenses = expenses;
         _periods = periods;
         _charges = charges;
+        _manualCharges = manualCharges;
         _units = units;
         _payments = payments;
         _uow = uow;
@@ -304,18 +307,20 @@ public class BillingService
 
         // 2. Saldo Anterior (Previous Balance)
         var chargesBefore = await _charges.GetChargesBeforePeriodAsync(communityId, unitId, period, ct);
+        var manualChargesBefore = await _manualCharges.GetBeforePeriodAsync(communityId, unitId, period, ct);
         var paymentsBefore = await _payments.GetPaymentsBeforePeriodAsync(communityId, unitId, period, ct);
 
-        var chargesBeforeTotal = chargesBefore.Sum(x => x.Amount);
+        var chargesBeforeTotal = chargesBefore.Sum(x => x.Amount) + manualChargesBefore.Sum(x => x.Amount);
         var paymentsBeforeTotal = paymentsBefore.Sum(x => x.Amount);
         
         var previousBalance = chargesBeforeTotal - paymentsBeforeTotal;
 
         // 3. Movimientos del Periodo (Current Charges & Payments)
         var currentCharges = await _charges.GetChargesForPeriodAsync(communityId, unitId, period, ct);
+        var manualCharges = await _manualCharges.GetForUnitAndPeriodAsync(communityId, unitId, period, ct);
         var currentPayments = await _payments.GetPaymentsForPeriodAsync(communityId, unitId, period, ct);
 
-        var currentChargesTotal = currentCharges.Sum(x => x.Amount);
+        var currentChargesTotal = currentCharges.Sum(x => x.Amount) + manualCharges.Sum(x => x.Amount);
         var paymentsTotal = currentPayments.Sum(x => x.Amount);
 
         // 4. Total a Pagar
@@ -324,7 +329,7 @@ public class BillingService
         // 5. Construir Líneas
         var lines = new List<StatementLineDto>();
 
-        // Agregamos cargos
+        // Agregamos cargos por coeficiente (Gasto Común)
         lines.AddRange(currentCharges.Select(c => new StatementLineDto(
             Type: "Charge", 
             Description: "Gasto Común", 
@@ -333,13 +338,20 @@ public class BillingService
             Period: period
         )));
 
+        // Agregamos cargos manuales (Reservas, etc)
+        lines.AddRange(manualCharges.Select(c => new StatementLineDto(
+            Type: "Charge",
+            Description: c.Description,
+            Amount: c.Amount,
+            Date: c.CreatedAtUtc,
+            Period: period
+        )));
+
         // Agregamos pagos
         lines.AddRange(currentPayments.Select(p => new StatementLineDto(
             Type: "Payment",
             Description: "Abono",
-            Amount: p.Amount, // Pagos restan a la deuda, pero aquí mostramos monto absoluto? 
-            // En el statement suele mostrarse positivo en la columna de abonos. 
-            // El DTO Lines tiene Amount. Lo dejaremos positivo y el Type indica si suma o resta.
+            Amount: p.Amount, 
             Date: p.PaidAtUtc,
             Period: p.Period
         )));

@@ -14,3 +14,6 @@ public record BookingDto(
     DateTime EndAtUtc,
     string Status,
     string? Notes);
+
+public record RejectBookingRequest(string Reason);
+public record CancelBookingRequest(string? Reason);

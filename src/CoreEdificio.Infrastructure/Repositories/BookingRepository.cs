@@ -41,4 +41,15 @@ public class BookingRepository : IBookingRepository
         _db.Bookings.Add(booking);
         await _db.SaveChangesAsync(ct);
     }
+
+    public Task<Booking?> GetByIdAsync(Guid id, CancellationToken ct = default)
+    {
+        return _db.Bookings.FirstOrDefaultAsync(x => x.Id == id, ct);
+    }
+
+    public async Task UpdateAsync(Booking booking, CancellationToken ct = default)
+    {
+        _db.Bookings.Update(booking);
+        await _db.SaveChangesAsync(ct);
+    }
 }

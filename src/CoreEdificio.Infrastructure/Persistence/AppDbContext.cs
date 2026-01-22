@@ -22,6 +22,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
     public virtual DbSet<UnitComponent> UnitComponents { get; set; } = null!;
     public virtual DbSet<Facility> Facilities { get; set; } = null!;
     public virtual DbSet<Booking> Bookings { get; set; } = null!;
+    public virtual DbSet<Charge> Charges { get; set; } = null!;
 
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -230,6 +231,29 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
                 .OnDelete(DeleteBehavior.Restrict);
 
             b.HasIndex(x => new { x.CommunityId, x.FacilityId, x.StartAtUtc, x.EndAtUtc });
+        });
+
+        modelBuilder.Entity<Charge>(b =>
+        {
+            b.ToTable("Charges");
+            b.HasKey(x => x.Id);
+
+            b.Property(x => x.CommunityId).IsRequired();
+            b.Property(x => x.UnitId).IsRequired();
+
+            b.Property(x => x.Amount).HasPrecision(18, 2).IsRequired();
+            b.Property(x => x.Description).HasMaxLength(250).IsRequired();
+            b.Property(x => x.Period).HasMaxLength(7).IsRequired();
+
+            b.Property(x => x.SourceType).HasMaxLength(50).IsRequired();
+            b.Property(x => x.SourceId);
+            b.Property(x => x.SourceRef).HasMaxLength(250);
+            b.Property(x => x.ChargeKind).HasMaxLength(20).IsRequired();
+
+            b.Property(x => x.CreatedAtUtc).IsRequired();
+
+            b.HasIndex(x => new { x.CommunityId, x.UnitId, x.Period });
+            b.HasIndex(x => new { x.SourceType, x.SourceId, x.ChargeKind }).IsUnique();
         });
     }
 }

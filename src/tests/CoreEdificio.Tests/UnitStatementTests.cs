@@ -16,6 +16,7 @@ public class UnitStatementTests
     private readonly Mock<IExpenseRepository> _expenses = new();
     private readonly Mock<IBillingPeriodRepository> _periods = new();
     private readonly Mock<IUnitChargeRepository> _charges = new();
+    private readonly Mock<IChargeRepository> _manualCharges = new();
     private readonly Mock<IUnitReadRepository> _units = new();
     private readonly Mock<IPaymentRepository> _payments = new();
     private readonly Mock<IUnitOfWork> _uow = new();
@@ -29,6 +30,7 @@ public class UnitStatementTests
             _expenses.Object, 
             _periods.Object, 
             _charges.Object, 
+            _manualCharges.Object,
             _units.Object, 
             _payments.Object, 
             _uow.Object, 
@@ -57,6 +59,9 @@ public class UnitStatementTests
         _charges.Setup(x => x.GetChargesBeforePeriodAsync(communityId, unitId, period, It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new List<UnitCharge> { new UnitCharge { Amount = 1000m } });
 
+        _manualCharges.Setup(x => x.GetBeforePeriodAsync(communityId, unitId, period, It.IsAny<CancellationToken>()))
+                      .ReturnsAsync(new List<Charge>());
+
         // Setup Payments Before: 0
         _payments.Setup(x => x.GetPaymentsBeforePeriodAsync(communityId, unitId, period, It.IsAny<CancellationToken>()))
                  .ReturnsAsync(new List<Payment>());
@@ -64,6 +69,8 @@ public class UnitStatementTests
         // Setup Current Period: Empty (to isolate previous balance check)
         _charges.Setup(x => x.GetChargesForPeriodAsync(communityId, unitId, period, It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new List<UnitCharge>());
+        _manualCharges.Setup(x => x.GetForUnitAndPeriodAsync(communityId, unitId, period, It.IsAny<CancellationToken>()))
+                      .ReturnsAsync(new List<Charge>());
          _payments.Setup(x => x.GetPaymentsForPeriodAsync(communityId, unitId, period, It.IsAny<CancellationToken>()))
                  .ReturnsAsync(new List<Payment>());
 
@@ -90,6 +97,9 @@ public class UnitStatementTests
         _charges.Setup(x => x.GetChargesBeforePeriodAsync(communityId, unitId, period, It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new List<UnitCharge> { new UnitCharge { Amount = 1000m } });
 
+        _manualCharges.Setup(x => x.GetBeforePeriodAsync(communityId, unitId, period, It.IsAny<CancellationToken>()))
+                      .ReturnsAsync(new List<Charge>());
+
         // Payments: 400
         _payments.Setup(x => x.GetPaymentsBeforePeriodAsync(communityId, unitId, period, It.IsAny<CancellationToken>()))
                  .ReturnsAsync(new List<Payment> { new Payment { Amount = 400m } });
@@ -97,8 +107,10 @@ public class UnitStatementTests
         // Current Period Empty
         _charges.Setup(x => x.GetChargesForPeriodAsync(communityId, unitId, period, It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new List<UnitCharge>());
+        _manualCharges.Setup(x => x.GetForUnitAndPeriodAsync(communityId, unitId, period, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new List<Charge>());
         _payments.Setup(x => x.GetPaymentsForPeriodAsync(communityId, unitId, period, It.IsAny<CancellationToken>()))
-                 .ReturnsAsync(new List<Payment>());
+                .ReturnsAsync(new List<Payment>());
 
         // Act
         var result = await _service.GetUnitStatementAsync(communityId, unitId, period, CancellationToken.None);
@@ -121,6 +133,8 @@ public class UnitStatementTests
         // Previous Balance: 0
         _charges.Setup(x => x.GetChargesBeforePeriodAsync(communityId, unitId, period, It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new List<UnitCharge>());
+        _manualCharges.Setup(x => x.GetBeforePeriodAsync(communityId, unitId, period, It.IsAny<CancellationToken>()))
+                      .ReturnsAsync(new List<Charge>());
         _payments.Setup(x => x.GetPaymentsBeforePeriodAsync(communityId, unitId, period, It.IsAny<CancellationToken>()))
                  .ReturnsAsync(new List<Payment>());
 
@@ -130,6 +144,9 @@ public class UnitStatementTests
                 .ReturnsAsync(new List<UnitCharge> { 
                     new UnitCharge { Amount = 500m, BillingPeriod = new BillingPeriod { IssuedAtUtc = issuedAt } } 
                 });
+
+        _manualCharges.Setup(x => x.GetForUnitAndPeriodAsync(communityId, unitId, period, It.IsAny<CancellationToken>()))
+                      .ReturnsAsync(new List<Charge>());
 
         // Current Payments: 200
         _payments.Setup(x => x.GetPaymentsForPeriodAsync(communityId, unitId, period, It.IsAny<CancellationToken>()))
@@ -165,10 +182,14 @@ public class UnitStatementTests
 
         _charges.Setup(x => x.GetChargesBeforePeriodAsync(communityId, unitId, period, It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new List<UnitCharge>());
+        _manualCharges.Setup(x => x.GetBeforePeriodAsync(communityId, unitId, period, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new List<Charge>());
         _payments.Setup(x => x.GetPaymentsBeforePeriodAsync(communityId, unitId, period, It.IsAny<CancellationToken>()))
                  .ReturnsAsync(new List<Payment>());
         _charges.Setup(x => x.GetChargesForPeriodAsync(communityId, unitId, period, It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new List<UnitCharge>());
+        _manualCharges.Setup(x => x.GetForUnitAndPeriodAsync(communityId, unitId, period, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new List<Charge>());
         _payments.Setup(x => x.GetPaymentsForPeriodAsync(communityId, unitId, period, It.IsAny<CancellationToken>()))
                  .ReturnsAsync(new List<Payment>());
 

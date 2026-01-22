@@ -64,6 +64,7 @@ public class BillingServiceProrationIntegrationTests
                 .ReturnsAsync((BillingPeriod?)null);
 
             var chargesRepo = new Mock<IUnitChargeRepository>();
+            var manualChargesRepo = new Mock<IChargeRepository>();
             var paymentsRepo = new Mock<IPaymentRepository>();
             var uow = new Mock<IUnitOfWork>();
             
@@ -77,6 +78,7 @@ public class BillingServiceProrationIntegrationTests
                 expensesRepo.Object,
                 periodsRepo.Object,
                 chargesRepo.Object,
+                manualChargesRepo.Object,
                 unitReadRepo, // Real repo!
                 paymentsRepo.Object,
                 uow.Object,
