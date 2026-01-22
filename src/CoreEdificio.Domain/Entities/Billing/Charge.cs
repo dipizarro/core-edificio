@@ -14,7 +14,8 @@ public class Charge
     public string SourceType { get; set; } = null!; // "FacilityBooking"
     public Guid? SourceId { get; set; }
     public string? SourceRef { get; set; }
-    public string ChargeKind { get; set; } = null!; // "Rent" | "Deposit"
+    public string ChargeKind { get; set; } = null!; // "Rent" | "Deposit" | "Fine"
+    public string? FineType { get; set; } // "LateCancel" | "NoShow"
 
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 }

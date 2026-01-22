@@ -237,6 +237,9 @@ public class FacilitiesController : ControllerBase
             SlotDurationMinutes = request.SlotDurationMinutes,
             MaxHoursPerBooking = request.MaxHoursPerBooking,
             MaxBookingsPerMonthPerUnit = request.MaxBookingsPerMonthPerUnit,
+            CancelPenaltyHours = request.CancelPenaltyHours,
+            LateCancelFineAmountClp = request.LateCancelFineAmountClp,
+            NoShowFineAmountClp = request.NoShowFineAmountClp,
             CreatedAtUtc = DateTime.UtcNow,
             IsActive = true
         };
@@ -272,6 +275,9 @@ public class FacilitiesController : ControllerBase
         facility.SlotDurationMinutes = request.SlotDurationMinutes;
         facility.MaxHoursPerBooking = request.MaxHoursPerBooking;
         facility.MaxBookingsPerMonthPerUnit = request.MaxBookingsPerMonthPerUnit;
+        facility.CancelPenaltyHours = request.CancelPenaltyHours;
+        facility.LateCancelFineAmountClp = request.LateCancelFineAmountClp;
+        facility.NoShowFineAmountClp = request.NoShowFineAmountClp;
 
         await _db.SaveChangesAsync(ct);
 
@@ -310,7 +316,10 @@ public class FacilitiesController : ControllerBase
             facility.RequiresApproval,
             facility.SlotDurationMinutes,
             facility.MaxHoursPerBooking,
-            facility.MaxBookingsPerMonthPerUnit);
+            facility.MaxBookingsPerMonthPerUnit,
+            facility.CancelPenaltyHours,
+            facility.LateCancelFineAmountClp,
+            facility.NoShowFineAmountClp);
     }
 
     private static bool TryParseChargingMode(string chargingMode, out FacilityChargingMode mode)

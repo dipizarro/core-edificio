@@ -181,6 +181,15 @@ public class BookingsController : ControllerBase
         return NoContent();
     }
 
+    [HttpPost("api/communities/{communityId:guid}/facilities/{facilityId:guid}/bookings/{bookingId:guid}/no-show")]
+    [Authorize(Roles = "Committee,Admin")]
+    [Authorize(Policy = AuthPolicies.CommunityScope)]
+    public async Task<IActionResult> MarkNoShow(Guid communityId, Guid facilityId, Guid bookingId, CancellationToken ct)
+    {
+        await _service.MarkNoShowAsync(communityId, facilityId, bookingId, UserContext.GetUserId(User), ct);
+        return NoContent();
+    }
+
     private static BookingDto ToDto(Booking booking)
     {
         return new BookingDto(

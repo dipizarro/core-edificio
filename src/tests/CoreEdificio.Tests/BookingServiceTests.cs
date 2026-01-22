@@ -167,6 +167,97 @@ public class BookingServiceTests
         Assert.Equal(BookingStatus.Approved, booking.Status);
     }
 
+    [Fact]
+    public async Task CancelBooking_WithinPenaltyWindow_GeneratesFine()
+    {
+        await using var db = await CreateDbAsync();
+        var community = await SeedCommunityAsync(db);
+        var unit = await SeedUnitAsync(db, community.Id);
+        // Window: 24h, Fine: 5000
+        var facility = await SeedFacilityAsync(db, community.Id, false, 60, penaltyHours: 24, lateCancelFine: 5000);
+
+        var service = CreateService(db);
+        var start = DateTime.UtcNow.AddHours(2); // In 2 hours (within 24h)
+        var end = start.AddHours(1);
+        var booking = await service.CreateBookingAsync(community.Id, facility.Id, unit.Id, Guid.NewGuid(), start, end, null);
+
+        // Act
+        await service.CancelBookingAsync(booking.Id, Guid.NewGuid(), "Late cancel");
+
+        // Assert
+        var fine = await db.Charges.FirstOrDefaultAsync(c => c.SourceId == booking.Id && c.ChargeKind == "Fine" && c.FineType == "LateCancel");
+        Assert.NotNull(fine);
+        Assert.Equal(5000, fine.Amount);
+    }
+
+    [Fact]
+    public async Task CancelBooking_OutsidePenaltyWindow_NoFine()
+    {
+        await using var db = await CreateDbAsync();
+        var community = await SeedCommunityAsync(db);
+        var unit = await SeedUnitAsync(db, community.Id);
+        var facility = await SeedFacilityAsync(db, community.Id, false, 60, penaltyHours: 24, lateCancelFine: 5000);
+
+        var service = CreateService(db);
+        var start = DateTime.UtcNow.AddHours(25); // In 25 hours (outside 24h)
+        var end = start.AddHours(1);
+        var booking = await service.CreateBookingAsync(community.Id, facility.Id, unit.Id, Guid.NewGuid(), start, end, null);
+
+        // Act
+        await service.CancelBookingAsync(booking.Id, Guid.NewGuid(), "Early enough");
+
+        // Assert
+        var fineCount = await db.Charges.CountAsync(c => c.SourceId == booking.Id && c.ChargeKind == "Fine");
+        Assert.Equal(0, fineCount);
+    }
+
+    [Fact]
+    public async Task MarkNoShow_GeneratesFine()
+    {
+        await using var db = await CreateDbAsync();
+        var community = await SeedCommunityAsync(db);
+        var unit = await SeedUnitAsync(db, community.Id);
+        var facility = await SeedFacilityAsync(db, community.Id, false, 60, noShowFine: 7000);
+
+        var service = CreateService(db);
+        var start = DateTime.UtcNow.AddHours(-1); // Started 1h ago
+        var end = start.AddHours(1);
+        var booking = await service.CreateBookingAsync(community.Id, facility.Id, unit.Id, Guid.NewGuid(), start, end, null);
+
+        // Act
+        await service.MarkNoShowAsync(community.Id, facility.Id, booking.Id, Guid.NewGuid());
+
+        // Assert
+        var fine = await db.Charges.FirstOrDefaultAsync(c => c.SourceId == booking.Id && c.ChargeKind == "Fine" && c.FineType == "NoShow");
+        Assert.NotNull(fine);
+        Assert.Equal(7000, fine.Amount);
+        
+        var updated = await db.Bookings.FindAsync(booking.Id);
+        Assert.Equal(BookingStatus.NoShow, updated?.Status);
+    }
+
+    [Fact]
+    public async Task MarkNoShow_Idempotent()
+    {
+        await using var db = await CreateDbAsync();
+        var community = await SeedCommunityAsync(db);
+        var unit = await SeedUnitAsync(db, community.Id);
+        var facility = await SeedFacilityAsync(db, community.Id, false, 60, noShowFine: 7000);
+
+        var service = CreateService(db);
+        var start = DateTime.UtcNow.AddHours(-1);
+        var end = start.AddHours(1);
+        var booking = await service.CreateBookingAsync(community.Id, facility.Id, unit.Id, Guid.NewGuid(), start, end, null);
+
+        // Act: Double no-show
+        await service.MarkNoShowAsync(community.Id, facility.Id, booking.Id, Guid.NewGuid());
+        await service.MarkNoShowAsync(community.Id, facility.Id, booking.Id, Guid.NewGuid());
+
+        // Assert
+        var fineCount = await db.Charges.CountAsync(c => c.SourceId == booking.Id && c.ChargeKind == "Fine" && c.FineType == "NoShow");
+        Assert.Equal(1, fineCount);
+    }
+
     private static BookingService CreateService(AppDbContext db)
     {
         var repo = new BookingRepository(db);
@@ -213,7 +304,10 @@ public class BookingServiceTests
         int slotMinutes,
         FacilityChargingMode chargingMode = FacilityChargingMode.Free,
         int rent = 0,
-        int deposit = 0)
+        int deposit = 0,
+        int penaltyHours = 0,
+        int lateCancelFine = 0,
+        int noShowFine = 0)
     {
         var facility = new Facility
         {
@@ -224,6 +318,9 @@ public class BookingServiceTests
             DepositAmountClp = deposit,
             RequiresApproval = requiresApproval,
             SlotDurationMinutes = slotMinutes,
+            CancelPenaltyHours = penaltyHours,
+            LateCancelFineAmountClp = lateCancelFine,
+            NoShowFineAmountClp = noShowFine,
             IsActive = true,
             CreatedAtUtc = DateTime.UtcNow
         };

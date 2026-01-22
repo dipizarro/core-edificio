@@ -10,7 +10,10 @@ public record CreateFacilityRequest(
     bool RequiresApproval,
     int SlotDurationMinutes,
     int? MaxHoursPerBooking,
-    int? MaxBookingsPerMonthPerUnit);
+    int? MaxBookingsPerMonthPerUnit,
+    int CancelPenaltyHours = 0,
+    int LateCancelFineAmountClp = 0,
+    int NoShowFineAmountClp = 0);
 
 public record UpdateFacilityRequest(
     string Name,
@@ -22,7 +25,10 @@ public record UpdateFacilityRequest(
     bool RequiresApproval,
     int SlotDurationMinutes,
     int? MaxHoursPerBooking,
-    int? MaxBookingsPerMonthPerUnit);
+    int? MaxBookingsPerMonthPerUnit,
+    int CancelPenaltyHours = 0,
+    int LateCancelFineAmountClp = 0,
+    int NoShowFineAmountClp = 0);
 
 public record FacilityDto(
     Guid Id,
@@ -37,4 +43,7 @@ public record FacilityDto(
     bool RequiresApproval,
     int SlotDurationMinutes,
     int? MaxHoursPerBooking,
-    int? MaxBookingsPerMonthPerUnit);
+    int? MaxBookingsPerMonthPerUnit,
+    int CancelPenaltyHours,
+    int LateCancelFineAmountClp,
+    int NoShowFineAmountClp);

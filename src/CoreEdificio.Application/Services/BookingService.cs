@@ -132,16 +132,64 @@ public class BookingService
         var booking = await _repo.GetByIdAsync(bookingId, ct);
         if (booking is null) throw new NotFoundException("Booking not found.");
 
-        // Regla: Pendiente o Aprobado -> Cancelado
+        if (booking.Status == BookingStatus.Cancelled) return;
+
         if (booking.Status != BookingStatus.PendingApproval && booking.Status != BookingStatus.Approved)
             throw new ValidationException($"Cannot cancel booking with status {booking.Status}.");
 
+        var oldStatus = booking.Status;
         booking.Status = BookingStatus.Cancelled;
         booking.CancelledAtUtc = DateTime.UtcNow;
         booking.CancelledByUserId = userId;
         booking.CancelReason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
 
-        await _repo.UpdateAsync(booking, ct);
+        await _uow.ExecuteInTransactionAsync(async token =>
+        {
+            await _repo.UpdateAsync(booking, token);
+
+            if (oldStatus == BookingStatus.Approved)
+            {
+                var facility = await _repo.GetFacilityAsync(booking.CommunityId, booking.FacilityId, token);
+                if (facility is { CancelPenaltyHours: > 0, LateCancelFineAmountClp: > 0 })
+                {
+                    var hoursToStart = (booking.StartAtUtc - DateTime.UtcNow).TotalHours;
+                    if (hoursToStart >= 0 && hoursToStart < facility.CancelPenaltyHours)
+                    {
+                        await GenerateFineAsync(booking, facility, "LateCancel", facility.LateCancelFineAmountClp, token);
+                    }
+                }
+            }
+        }, ct);
+    }
+
+    public async Task MarkNoShowAsync(Guid communityId, Guid facilityId, Guid bookingId, Guid userId, CancellationToken ct = default)
+    {
+        var booking = await _repo.GetByIdAsync(bookingId, ct);
+        if (booking is null || booking.CommunityId != communityId || booking.FacilityId != facilityId)
+            throw new NotFoundException("Booking not found.");
+
+        if (booking.Status == BookingStatus.NoShow) return;
+
+        if (booking.Status != BookingStatus.Approved)
+            throw new ValidationException("Only approved bookings can be marked as No-Show.");
+
+        if (booking.StartAtUtc > DateTime.UtcNow)
+            throw new ValidationException("Cannot mark as No-Show before the booking starts.");
+
+        booking.Status = BookingStatus.NoShow;
+
+        var facility = await _repo.GetFacilityAsync(communityId, facilityId, ct);
+        if (facility is null) throw new NotFoundException("Facility not found.");
+
+        await _uow.ExecuteInTransactionAsync(async token =>
+        {
+            await _repo.UpdateAsync(booking, token);
+
+            if (facility.NoShowFineAmountClp > 0)
+            {
+                await GenerateFineAsync(booking, facility, "NoShow", facility.NoShowFineAmountClp, token);
+            }
+        }, ct);
     }
 
     public async Task GenerateChargesForBookingAsync(Booking booking, Facility facility, CancellationToken ct)
@@ -152,13 +200,12 @@ public class BookingService
         var period = booking.StartAtUtc.ToString("yyyy-MM");
         var timeStr = $"{booking.StartAtUtc:yyyy-MM-dd HH:mm}-{booking.EndAtUtc:HH:mm}";
 
-        // Idempotencia: Verificar si ya existen cargos para esta booking
         var hasRent = facility.ChargingMode is FacilityChargingMode.Paid or FacilityChargingMode.PaidAndDeposit;
         var hasDeposit = facility.ChargingMode is FacilityChargingMode.Deposit or FacilityChargingMode.PaidAndDeposit;
 
         if (hasRent)
         {
-            var alreadyExists = await _charges.ExistsAsync("FacilityBooking", booking.Id, "Rent", ct);
+            var alreadyExists = await _charges.ExistsAsync("FacilityBooking", booking.Id, "Rent", null, ct);
             if (!alreadyExists)
             {
                 charges.Add(new Charge
@@ -178,7 +225,7 @@ public class BookingService
 
         if (hasDeposit)
         {
-            var alreadyExists = await _charges.ExistsAsync("FacilityBooking", booking.Id, "Deposit", ct);
+            var alreadyExists = await _charges.ExistsAsync("FacilityBooking", booking.Id, "Deposit", null, ct);
             if (!alreadyExists)
             {
                 charges.Add(new Charge
@@ -200,5 +247,31 @@ public class BookingService
         {
             await _charges.AddRangeAsync(charges, ct);
         }
+    }
+
+    private async Task GenerateFineAsync(Booking booking, Facility facility, string fineType, int amount, CancellationToken ct)
+    {
+        var alreadyExists = await _charges.ExistsAsync("FacilityBooking", booking.Id, "Fine", fineType, ct);
+        if (alreadyExists) return;
+
+        var period = booking.StartAtUtc.ToString("yyyy-MM");
+        var timeStr = $"{booking.StartAtUtc:yyyy-MM-dd HH:mm}-{booking.EndAtUtc:HH:mm}";
+        var label = fineType == "LateCancel" ? "cancelación tardía" : "no-show";
+
+        var charge = new Charge
+        {
+            CommunityId = booking.CommunityId,
+            UnitId = booking.UnitId,
+            Amount = amount,
+            Description = $"Multa {label} {facility.Name} {timeStr}",
+            Period = period,
+            SourceType = "FacilityBooking",
+            SourceId = booking.Id,
+            SourceRef = facility.Name,
+            ChargeKind = "Fine",
+            FineType = fineType
+        };
+
+        await _charges.AddAsync(charge, ct);
     }
 }

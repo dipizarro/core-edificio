@@ -252,9 +252,10 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
             b.Property(x => x.ChargeKind).HasMaxLength(20).IsRequired();
 
             b.Property(x => x.CreatedAtUtc).IsRequired();
+            b.Property(x => x.FineType).HasMaxLength(20);
 
             b.HasIndex(x => new { x.CommunityId, x.UnitId, x.Period });
-            b.HasIndex(x => new { x.SourceType, x.SourceId, x.ChargeKind }).IsUnique();
+            b.HasIndex(x => new { x.SourceType, x.SourceId, x.ChargeKind, x.FineType }).IsUnique();
         });
 
         modelBuilder.Entity<FacilityBlock>(b =>

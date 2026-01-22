@@ -26,9 +26,12 @@ public class ChargeRepository : IChargeRepository
         await _db.SaveChangesAsync(ct);
     }
 
-    public async Task<bool> ExistsAsync(string sourceType, Guid sourceId, string chargeKind, CancellationToken ct)
+    public async Task<bool> ExistsAsync(string sourceType, Guid sourceId, string chargeKind, string? fineType, CancellationToken ct)
     {
-        return await _db.Charges.AnyAsync(x => x.SourceType == sourceType && x.SourceId == sourceId && x.ChargeKind == chargeKind, ct);
+        return await _db.Charges.AnyAsync(x => x.SourceType == sourceType && 
+                                               x.SourceId == sourceId && 
+                                               x.ChargeKind == chargeKind && 
+                                               x.FineType == fineType, ct);
     }
 
     public async Task<List<Charge>> GetForUnitAndPeriodAsync(Guid communityId, Guid unitId, string period, CancellationToken ct)

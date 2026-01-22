@@ -15,6 +15,11 @@ public class Facility
     public int SlotDurationMinutes { get; set; }
     public int? MaxHoursPerBooking { get; set; }
     public int? MaxBookingsPerMonthPerUnit { get; set; }
+    
+    public int CancelPenaltyHours { get; set; }
+    public int LateCancelFineAmountClp { get; set; }
+    public int NoShowFineAmountClp { get; set; }
+
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 
     public void Validate()
