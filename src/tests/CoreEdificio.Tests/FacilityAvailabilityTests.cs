@@ -128,6 +128,78 @@ public class FacilityAvailabilityTests
         Assert.Null(response.Intervals[0].UnitNumber);
     }
 
+    [Fact]
+    public async Task GetAvailabilitySlots_GeneratesCorrectCount()
+    {
+        await using var db = await CreateDbAsync();
+        var communityId = Guid.NewGuid();
+        var facilityId = Guid.NewGuid();
+        db.Facilities.Add(new Facility { Id = facilityId, CommunityId = communityId, Name = "Q", IsActive = true, SlotDurationMinutes = 60 });
+        await db.SaveChangesAsync();
+
+        var controller = new FacilitiesController(db);
+        SetUser(controller, communityId, "Resident");
+
+        var from = new DateTime(2026, 2, 1, 10, 0, 0, DateTimeKind.Utc);
+        var to = new DateTime(2026, 2, 1, 13, 0, 0, DateTimeKind.Utc); // 3 hours = 3 slots
+
+        var result = await controller.GetAvailabilitySlots(communityId, facilityId, from, to, CancellationToken.None);
+
+        var okResult = Assert.IsType<OkObjectResult>(result);
+        var response = Assert.IsType<FacilityAvailabilitySlotsResponse>(okResult.Value);
+
+        Assert.Equal(3, response.Slots.Count);
+        Assert.Equal(from, response.Slots[0].StartAtUtc);
+        Assert.Equal(to, response.Slots[2].EndAtUtc);
+    }
+
+    [Fact]
+    public async Task GetAvailabilitySlots_BlockedWinsOverBooking()
+    {
+        await using var db = await CreateDbAsync();
+        var communityId = Guid.NewGuid();
+        var facilityId = Guid.NewGuid();
+        var unitId = Guid.NewGuid();
+        
+        db.Communities.Add(new Community { Id = communityId, Name = "T", Address = "A" });
+        db.Units.Add(new Unit { Id = unitId, CommunityId = communityId, Number = "101", CoefficientPct = 10m });
+        db.Facilities.Add(new Facility { Id = facilityId, CommunityId = communityId, Name = "Q", IsActive = true, SlotDurationMinutes = 60 });
+
+        var start = new DateTime(2026, 2, 1, 10, 0, 0, DateTimeKind.Utc);
+        var end = new DateTime(2026, 2, 1, 11, 0, 0, DateTimeKind.Utc);
+
+        // Booking Approved
+        db.Bookings.Add(new Booking { CommunityId = communityId, FacilityId = facilityId, UnitId = unitId, StartAtUtc = start, EndAtUtc = end, Status = BookingStatus.Approved, CreatedByUserId = Guid.NewGuid() });
+
+        // Block (Active) same time
+        db.FacilityBlocks.Add(new FacilityBlock { CommunityId = communityId, FacilityId = facilityId, StartAtUtc = start, EndAtUtc = end, Reason = "Maintenance", IsActive = true, CreatedByUserId = Guid.NewGuid() });
+
+        await db.SaveChangesAsync();
+
+        var controller = new FacilitiesController(db);
+        SetUser(controller, communityId, "Resident");
+
+        var result = await controller.GetAvailabilitySlots(communityId, facilityId, start, end, CancellationToken.None);
+
+        var okResult = Assert.IsType<OkObjectResult>(result);
+        var response = Assert.IsType<FacilityAvailabilitySlotsResponse>(okResult.Value);
+
+        Assert.Single(response.Slots);
+        Assert.Equal("Blocked", response.Slots[0].Status);
+        Assert.Equal("Maintenance", response.Slots[0].ReasonOrStatus);
+    }
+
+    [Fact]
+    public async Task GetAvailabilitySlots_RangeLimit_ThrowsBadRequest()
+    {
+        await using var db = await CreateDbAsync();
+        var controller = new FacilitiesController(db);
+        var from = DateTime.UtcNow;
+        var to = from.AddDays(15);
+        var result = await controller.GetAvailabilitySlots(Guid.NewGuid(), Guid.NewGuid(), from, to, CancellationToken.None);
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
     private static void SetUser(ControllerBase controller, Guid communityId, string role)
     {
         var user = new ClaimsPrincipal(new ClaimsIdentity(new[]

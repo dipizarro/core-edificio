@@ -120,6 +120,97 @@ public class FacilitiesController : ControllerBase
 
         return Ok(response);
     }
+
+    [HttpGet("{facilityId:guid}/availability/slots")]
+    [Authorize(Roles = "Committee,Admin,Resident")]
+    [Authorize(Policy = AuthPolicies.CommunityScope)]
+    [ProducesResponseType(typeof(FacilityAvailabilitySlotsResponse), 200)]
+    public async Task<IActionResult> GetAvailabilitySlots(Guid communityId, Guid facilityId, [FromQuery] DateTime from, [FromQuery] DateTime to, CancellationToken ct)
+    {
+        if (from >= to)
+            return BadRequest("Start time (from) must be before end time (to).");
+
+        if ((to - from).TotalDays > 14)
+            return BadRequest("Maximum availability slots range is 14 days.");
+
+        var facility = await _db.Facilities.AsNoTracking().FirstOrDefaultAsync(f => f.Id == facilityId && f.CommunityId == communityId, ct);
+        if (facility is null)
+            return NotFound("Facility not found.");
+
+        if (facility.SlotDurationMinutes <= 0)
+            return BadRequest("Facility slot duration is invalid.");
+
+        // Query Bookings (Pending/Approved)
+        var bookings = await _db.Bookings.AsNoTracking()
+            .Where(b => b.CommunityId == communityId && b.FacilityId == facilityId &&
+                        (b.Status == BookingStatus.PendingApproval || b.Status == BookingStatus.Approved) &&
+                        b.StartAtUtc < to && b.EndAtUtc > from)
+            .ToListAsync(ct);
+
+        // Query Blocks
+        var blocks = await _db.FacilityBlocks.AsNoTracking()
+            .Where(x => x.CommunityId == communityId && x.FacilityId == facilityId && x.IsActive &&
+                        x.StartAtUtc < to && x.EndAtUtc > from)
+            .ToListAsync(ct);
+
+        var slots = new List<AvailabilitySlotDto>();
+        var duration = TimeSpan.FromMinutes(facility.SlotDurationMinutes);
+        var current = from;
+
+        while (current < to)
+        {
+            var slotStart = current;
+            var slotEnd = current + duration;
+            if (slotEnd > to) slotEnd = to;
+            if (slotEnd <= slotStart) break;
+
+            // Classification Priority: Blocked > Booked > Pending > Free
+            var block = blocks.FirstOrDefault(x => x.StartAtUtc < slotEnd && x.EndAtUtc > slotStart);
+            var booking = bookings.FirstOrDefault(x => x.StartAtUtc < slotEnd && x.EndAtUtc > slotStart);
+
+            string status;
+            string? reasonOrStatus = null;
+            Guid? bId = null;
+            Guid? blockId = null;
+
+            if (block != null)
+            {
+                status = "Blocked";
+                reasonOrStatus = block.Reason;
+                blockId = block.Id;
+            }
+            else if (booking != null && booking.Status == BookingStatus.Approved)
+            {
+                status = "Booked";
+                reasonOrStatus = "Approved";
+                bId = booking.Id;
+            }
+            else if (booking != null && booking.Status == BookingStatus.PendingApproval)
+            {
+                status = "Pending";
+                reasonOrStatus = "PendingApproval";
+                bId = booking.Id;
+            }
+            else
+            {
+                status = "Free";
+            }
+
+            slots.Add(new AvailabilitySlotDto(slotStart, slotEnd, status, reasonOrStatus, bId, blockId));
+            current = slotEnd;
+        }
+
+        var response = new FacilityAvailabilitySlotsResponse(
+            CommunityId: communityId,
+            FacilityId: facilityId,
+            FromUtc: from,
+            ToUtc: to,
+            SlotMinutes: facility.SlotDurationMinutes,
+            Slots: slots
+        );
+
+        return Ok(response);
+    }
     [ProducesResponseType(typeof(FacilityDto), 201)]
     public async Task<IActionResult> Create(Guid communityId, CreateFacilityRequest request, CancellationToken ct)
     {
