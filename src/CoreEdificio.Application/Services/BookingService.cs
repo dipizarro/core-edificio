@@ -10,12 +10,14 @@ public class BookingService
 {
     private readonly IBookingRepository _repo;
     private readonly IChargeRepository _charges;
+    private readonly IFacilityBlockRepository _blocks;
     private readonly IUnitOfWork _uow;
 
-    public BookingService(IBookingRepository repo, IChargeRepository charges, IUnitOfWork uow)
+    public BookingService(IBookingRepository repo, IChargeRepository charges, IFacilityBlockRepository blocks, IUnitOfWork uow)
     {
         _repo = repo;
         _charges = charges;
+        _blocks = blocks;
         _uow = uow;
     }
 
@@ -48,6 +50,11 @@ public class BookingService
 
         if (!await _repo.UnitExistsAsync(communityId, unitId, ct))
             throw new NotFoundException("Unit not found in community.");
+
+        // Check for active blocks
+        var activeBlocks = await _blocks.GetActiveBlocksInRangeAsync(facilityId, startUtc, endUtc, ct);
+        if (activeBlocks.Any())
+            throw new ValidationException("Facility is blocked for the selected time range.");
 
         if (await _repo.HasOverlapAsync(facilityId, startUtc, endUtc, ct))
             throw new ConflictException("Booking overlaps with an existing reservation.");

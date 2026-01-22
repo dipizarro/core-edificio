@@ -23,6 +23,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
     public virtual DbSet<Facility> Facilities { get; set; } = null!;
     public virtual DbSet<Booking> Bookings { get; set; } = null!;
     public virtual DbSet<Charge> Charges { get; set; } = null!;
+    public virtual DbSet<FacilityBlock> FacilityBlocks { get; set; } = null!;
 
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -254,6 +255,28 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
 
             b.HasIndex(x => new { x.CommunityId, x.UnitId, x.Period });
             b.HasIndex(x => new { x.SourceType, x.SourceId, x.ChargeKind }).IsUnique();
+        });
+
+        modelBuilder.Entity<FacilityBlock>(b =>
+        {
+            b.ToTable("FacilityBlocks");
+            b.HasKey(x => x.Id);
+
+            b.Property(x => x.CommunityId).IsRequired();
+            b.Property(x => x.FacilityId).IsRequired();
+            b.Property(x => x.StartAtUtc).IsRequired();
+            b.Property(x => x.EndAtUtc).IsRequired();
+            b.Property(x => x.Reason).HasMaxLength(500).IsRequired();
+            b.Property(x => x.IsActive).IsRequired();
+            b.Property(x => x.CreatedByUserId).IsRequired();
+            b.Property(x => x.CreatedAtUtc).IsRequired();
+
+            b.HasOne(x => x.Facility)
+                .WithMany()
+                .HasForeignKey(x => x.FacilityId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            b.HasIndex(x => new { x.CommunityId, x.FacilityId, x.StartAtUtc, x.EndAtUtc });
         });
     }
 }

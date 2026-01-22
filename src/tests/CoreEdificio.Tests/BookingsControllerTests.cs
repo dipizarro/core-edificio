@@ -20,7 +20,7 @@ public class BookingsControllerTests
     public async Task ResidentBookingForOtherUnit_ReturnsForbid()
     {
         await using var db = await CreateDbAsync();
-        var service = new BookingService(new BookingRepository(db), new ChargeRepository(db), new UnitOfWork(db));
+        var service = new BookingService(new BookingRepository(db), new ChargeRepository(db), new FacilityBlockRepository(db), new UnitOfWork(db));
         var controller = new BookingsController(service, db);
 
         var residentUnitId = Guid.NewGuid();

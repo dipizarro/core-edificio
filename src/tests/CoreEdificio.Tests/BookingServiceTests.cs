@@ -101,12 +101,79 @@ public class BookingServiceTests
         Assert.Equal("User changed mind", updated?.CancelReason);
     }
 
+    [Fact]
+    public async Task CreateBooking_WithFacilityBlock_ThrowsValidation()
+    {
+        await using var db = await CreateDbAsync();
+        var community = await SeedCommunityAsync(db);
+        var unit = await SeedUnitAsync(db, community.Id);
+        var facility = await SeedFacilityAsync(db, community.Id, requiresApproval: false, slotMinutes: 60);
+
+        // Seed an active block
+        var start = new DateTime(2026, 2, 1, 10, 0, 0, DateTimeKind.Utc);
+        var end = new DateTime(2026, 2, 1, 12, 0, 0, DateTimeKind.Utc);
+        db.FacilityBlocks.Add(new FacilityBlock
+        {
+            CommunityId = community.Id,
+            FacilityId = facility.Id,
+            StartAtUtc = start,
+            EndAtUtc = end,
+            Reason = "Maintenance",
+            IsActive = true,
+            CreatedByUserId = Guid.NewGuid()
+        });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        
+        // Act & Assert: Choque total
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            service.CreateBookingAsync(community.Id, facility.Id, unit.Id, Guid.NewGuid(), start, start.AddMinutes(60), null));
+
+        // Act & Assert: Choque parcial (block empieza a la mitad del booking)
+        var preStart = start.AddMinutes(-30);
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            service.CreateBookingAsync(community.Id, facility.Id, unit.Id, Guid.NewGuid(), preStart, preStart.AddMinutes(60), null));
+    }
+
+    [Fact]
+    public async Task CreateBooking_AfterBlockDeactivated_SetsApproved()
+    {
+        await using var db = await CreateDbAsync();
+        var community = await SeedCommunityAsync(db);
+        var unit = await SeedUnitAsync(db, community.Id);
+        var facility = await SeedFacilityAsync(db, community.Id, requiresApproval: false, slotMinutes: 60);
+
+        var start = new DateTime(2026, 2, 2, 10, 0, 0, DateTimeKind.Utc);
+        var end = new DateTime(2026, 2, 2, 11, 0, 0, DateTimeKind.Utc);
+        
+        var block = new FacilityBlock
+        {
+            CommunityId = community.Id,
+            FacilityId = facility.Id,
+            StartAtUtc = start,
+            EndAtUtc = end,
+            Reason = "Temporary",
+            IsActive = false, // INACTIVO
+            CreatedByUserId = Guid.NewGuid()
+        };
+        db.FacilityBlocks.Add(block);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        
+        var booking = await service.CreateBookingAsync(community.Id, facility.Id, unit.Id, Guid.NewGuid(), start, end, null);
+
+        Assert.Equal(BookingStatus.Approved, booking.Status);
+    }
+
     private static BookingService CreateService(AppDbContext db)
     {
         var repo = new BookingRepository(db);
         var charges = new ChargeRepository(db);
+        var blocks = new FacilityBlockRepository(db);
         var uow = new UnitOfWork(db);
-        return new BookingService(repo, charges, uow);
+        return new BookingService(repo, charges, blocks, uow);
     }
 
     private static async Task<AppDbContext> CreateDbAsync()
