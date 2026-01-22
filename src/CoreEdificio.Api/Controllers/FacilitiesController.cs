@@ -48,7 +48,78 @@ public class FacilitiesController : ControllerBase
         return Ok(ToDto(facility));
     }
 
-    [HttpPost]
+    [HttpGet("{facilityId:guid}/availability")]
+    [Authorize(Roles = "Committee,Admin,Resident")]
+    [Authorize(Policy = AuthPolicies.CommunityScope)]
+    [ProducesResponseType(typeof(FacilityAvailabilityResponse), 200)]
+    public async Task<IActionResult> GetAvailability(Guid communityId, Guid facilityId, [FromQuery] DateTime from, [FromQuery] DateTime to, CancellationToken ct)
+    {
+        if (from >= to)
+            return BadRequest("Start time (from) must be before end time (to).");
+
+        if ((to - from).TotalDays > 31)
+            return BadRequest("Maximum availability range is 31 days.");
+
+        var facility = await _db.Facilities.AsNoTracking().FirstOrDefaultAsync(f => f.Id == facilityId && f.CommunityId == communityId, ct);
+        if (facility is null)
+            return NotFound("Facility not found.");
+
+        // Query Bookings
+        var bookings = await _db.Bookings.AsNoTracking()
+            .Where(b => b.CommunityId == communityId && b.FacilityId == facilityId &&
+                        (b.Status == BookingStatus.PendingApproval || b.Status == BookingStatus.Approved) &&
+                        b.StartAtUtc < to && b.EndAtUtc > from)
+            .Join(_db.Units, b => b.UnitId, u => u.Id, (b, u) => new { Booking = b, UnitNumber = u.Number })
+            .ToListAsync(ct);
+
+        // Query Blocks
+        var blocks = await _db.FacilityBlocks.AsNoTracking()
+            .Where(x => x.CommunityId == communityId && x.FacilityId == facilityId && x.IsActive &&
+                        x.StartAtUtc < to && x.EndAtUtc > from)
+            .ToListAsync(ct);
+
+        var isStaff = User.IsInRole("Committee") || User.IsInRole("Admin");
+
+        var intervals = new List<AvailabilityIntervalDto>();
+
+        foreach (var b in bookings)
+        {
+            intervals.Add(new AvailabilityIntervalDto(
+                Kind: "Booking",
+                StartAtUtc: b.Booking.StartAtUtc,
+                EndAtUtc: b.Booking.EndAtUtc,
+                StatusOrReason: b.Booking.Status.ToString(),
+                BookingId: b.Booking.Id,
+                BlockId: null,
+                UnitNumber: isStaff ? b.UnitNumber : null,
+                IsTentative: b.Booking.Status == BookingStatus.PendingApproval
+            ));
+        }
+
+        foreach (var block in blocks)
+        {
+            intervals.Add(new AvailabilityIntervalDto(
+                Kind: "Block",
+                StartAtUtc: block.StartAtUtc,
+                EndAtUtc: block.EndAtUtc,
+                StatusOrReason: block.Reason,
+                BookingId: null,
+                BlockId: block.Id,
+                UnitNumber: null,
+                IsTentative: false
+            ));
+        }
+
+        var response = new FacilityAvailabilityResponse(
+            CommunityId: communityId,
+            FacilityId: facilityId,
+            FromUtc: from,
+            ToUtc: to,
+            Intervals: intervals.OrderBy(x => x.StartAtUtc).ToList()
+        );
+
+        return Ok(response);
+    }
     [ProducesResponseType(typeof(FacilityDto), 201)]
     public async Task<IActionResult> Create(Guid communityId, CreateFacilityRequest request, CancellationToken ct)
     {
