@@ -329,4 +329,69 @@ public class BookingServiceTests
         await db.SaveChangesAsync();
         return facility;
     }
+
+    [Fact]
+    public async Task CompleteBooking_Approved_SetsStatusAndTimestamp()
+    {
+        await using var db = await CreateDbAsync();
+        var service = CreateService(db); 
+
+        var community = await SeedCommunityAsync(db);
+        var unit = await SeedUnitAsync(db, community.Id);
+        var facility = await SeedFacilityAsync(db, community.Id, requiresApproval: false, slotMinutes: 60);
+        
+        var start = DateTime.UtcNow;
+        var end = start.AddHours(1);
+
+        var booking = new Booking
+        {
+            CommunityId = community.Id,
+            FacilityId = facility.Id,
+            UnitId = unit.Id,
+            Status = BookingStatus.Approved,
+            StartAtUtc = start,
+            EndAtUtc = end,
+            CreatedByUserId = Guid.NewGuid(),
+            CreatedAtUtc = DateTime.UtcNow
+        };
+        db.Bookings.Add(booking);
+        await db.SaveChangesAsync();
+
+        await service.CompleteBookingAsync(community.Id, facility.Id, booking.Id, Guid.NewGuid());
+
+        var updated = await db.Bookings.FindAsync(booking.Id);
+        Assert.Equal(BookingStatus.Completed, updated?.Status);
+        Assert.NotNull(updated?.CompletedAtUtc);
+    }
+
+    [Fact]
+    public async Task CompleteBooking_NotApproved_ThrowsValidation()
+    {
+        await using var db = await CreateDbAsync();
+        var service = CreateService(db); 
+
+        var community = await SeedCommunityAsync(db);
+        var unit = await SeedUnitAsync(db, community.Id);
+        var facility = await SeedFacilityAsync(db, community.Id, requiresApproval: true, slotMinutes: 60);
+
+        var start = DateTime.UtcNow;
+        var end = start.AddHours(1);
+        
+        var booking = new Booking
+        {
+            CommunityId = community.Id,
+            FacilityId = facility.Id,
+            UnitId = unit.Id,
+            Status = BookingStatus.PendingApproval,
+            StartAtUtc = start,
+            EndAtUtc = end,
+            CreatedByUserId = Guid.NewGuid(),
+            CreatedAtUtc = DateTime.UtcNow
+        };
+        db.Bookings.Add(booking);
+        await db.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<ValidationException>(() => 
+            service.CompleteBookingAsync(community.Id, facility.Id, booking.Id, Guid.NewGuid()));
+    }
 }

@@ -18,4 +18,5 @@ public class Booking
     public DateTime? CancelledAtUtc { get; set; }
     public Guid? CancelledByUserId { get; set; }
     public string? CancelReason { get; set; }
+    public DateTime? CompletedAtUtc { get; set; }
 }

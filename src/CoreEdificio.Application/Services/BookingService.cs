@@ -274,4 +274,24 @@ public class BookingService
 
         await _charges.AddAsync(charge, ct);
     }
+
+    public async Task CompleteBookingAsync(Guid communityId, Guid facilityId, Guid bookingId, Guid userId, CancellationToken ct = default)
+    {
+        var booking = await _repo.GetByIdAsync(bookingId, ct);
+        if (booking is null || booking.CommunityId != communityId || booking.FacilityId != facilityId)
+            throw new NotFoundException("Booking not found.");
+
+        if (booking.Status == BookingStatus.Completed) return;
+
+        if (booking.Status != BookingStatus.Approved)
+            throw new ValidationException("Only approved bookings can be completed.");
+
+        booking.Status = BookingStatus.Completed;
+        booking.CompletedAtUtc = DateTime.UtcNow;
+
+        await _uow.ExecuteInTransactionAsync(async token =>
+        {
+            await _repo.UpdateAsync(booking, token);
+        }, ct);
+    }
 }
