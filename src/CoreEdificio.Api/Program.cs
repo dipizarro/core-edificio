@@ -66,6 +66,8 @@ builder.Services.AddScoped<IExpenseRepository, ExpenseRepository>();
 builder.Services.AddScoped<IBillingPeriodRepository, BillingPeriodRepository>();
 builder.Services.AddScoped<IUnitChargeRepository, UnitChargeRepository>();
 builder.Services.AddScoped<IUnitReadRepository, UnitReadRepository>();
+builder.Services.AddScoped<IChargeRepository, ChargeRepository>();
+builder.Services.AddScoped<IFacilityBlockRepository, FacilityBlockRepository>();
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<IPaymentRepository, PaymentRepository>();
 builder.Services.AddScoped<IBillingReadRepository, BillingReadRepository>();

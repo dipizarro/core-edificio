@@ -211,6 +211,7 @@ public class FacilitiesController : ControllerBase
 
         return Ok(response);
     }
+    [HttpPost]
     [ProducesResponseType(typeof(FacilityDto), 201)]
     public async Task<IActionResult> Create(Guid communityId, CreateFacilityRequest request, CancellationToken ct)
     {
