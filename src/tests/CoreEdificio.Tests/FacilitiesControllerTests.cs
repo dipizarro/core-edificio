@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using CoreEdificio.Application.Common;
 using CoreEdificio.Api.Auth;
 using CoreEdificio.Api.Contracts;
 using CoreEdificio.Api.Controllers;
@@ -14,6 +15,14 @@ namespace CoreEdificio.Tests;
 
 public class FacilitiesControllerTests
 {
+    private static FacilitiesController CreateController(AppDbContext db)
+    {
+        var repo = new CoreEdificio.Infrastructure.Repositories.FacilityRepository(db);
+        var communityRepo = new CoreEdificio.Infrastructure.Repositories.CommunityRepository(db);
+        var service = new CoreEdificio.Application.Services.FacilityService(repo, communityRepo);
+        return new FacilitiesController(service, db);
+    }
+
     [Fact]
     public async Task CreateFreeWithAmounts_ReturnsBadRequest()
     {
@@ -22,7 +31,7 @@ public class FacilitiesControllerTests
         db.Communities.Add(community);
         await db.SaveChangesAsync();
 
-        var controller = new FacilitiesController(db);
+        var controller = CreateController(db);
 
         var request = new CreateFacilityRequest(
             "Sala",
@@ -36,9 +45,7 @@ public class FacilitiesControllerTests
             null,
             null);
 
-        var result = await controller.Create(community.Id, request, CancellationToken.None);
-
-        Assert.IsType<BadRequestObjectResult>(result);
+        await Assert.ThrowsAsync<ValidationException>(() => controller.Create(community.Id, request, CancellationToken.None));
     }
 
     [Fact]
@@ -49,7 +56,7 @@ public class FacilitiesControllerTests
         db.Communities.Add(community);
         await db.SaveChangesAsync();
 
-        var controller = new FacilitiesController(db);
+        var controller = CreateController(db);
 
         var request = new CreateFacilityRequest(
             "Sala",
@@ -63,9 +70,7 @@ public class FacilitiesControllerTests
             null,
             null);
 
-        var result = await controller.Create(community.Id, request, CancellationToken.None);
-
-        Assert.IsType<BadRequestObjectResult>(result);
+        await Assert.ThrowsAsync<ValidationException>(() => controller.Create(community.Id, request, CancellationToken.None));
     }
 
     [Fact]
@@ -76,7 +81,7 @@ public class FacilitiesControllerTests
         db.Communities.Add(community);
         await db.SaveChangesAsync();
 
-        var controller = new FacilitiesController(db);
+        var controller = CreateController(db);
 
         var request = new CreateFacilityRequest(
             "Quincho",

@@ -1,4 +1,4 @@
-﻿using CoreEdificio.Application.Common;
+using CoreEdificio.Application.Common;
 using CoreEdificio.Application.Contracts.Billing;
 using CoreEdificio.Application.Contracts.Bulk;
 using CoreEdificio.Application.Contracts.Billing.Bulk;
@@ -10,6 +10,9 @@ using Microsoft.Extensions.Configuration;
 
 namespace CoreEdificio.Application.Services;
 
+/// <summary>
+/// Servicio responsable de consolidar y emitir el Gasto Común (Facturación) y de gestionar cobros/multas y estados de cuenta.
+/// </summary>
 public class BillingService
 {
     private const decimal CoefTarget = 100.00m;
@@ -43,16 +46,19 @@ public class BillingService
         _config = config;
     }
 
+    /// <summary>
+    /// Crea un gasto individual para un periodo específico, asegurando que el periodo no esté cerrado.
+    /// </summary>
     public async Task<Expense> CreateExpenseAsync(Guid communityId, CreateExpenseCommand cmd, CancellationToken ct = default)
     {
         var period = NormalizePeriod(cmd.Period);
-        if (string.IsNullOrWhiteSpace(cmd.Description)) throw new ValidationException("Description is required.");
-        if (cmd.Amount <= 0) throw new ValidationException("Amount must be > 0.");
+        if (string.IsNullOrWhiteSpace(cmd.Description)) throw new ValidationException("La descripción es obligatoria.");
+        if (cmd.Amount <= 0) throw new ValidationException("El monto debe ser numérico mayor a cero.");
 
         // Si el período ya está emitido, no se aceptan más gastos
         var existingPeriod = await _periods.GetByCommunityAndPeriodAsync(communityId, period, ct);
         if (existingPeriod?.Status == BillingPeriodStatus.Issued)
-            throw new ConflictException("Period is already issued. You can't add expenses.");
+            throw new ConflictException("El periodo ya se encuentra emitido. No puede añadir más gastos.");
 
         var expense = new Expense
         {
@@ -67,40 +73,47 @@ public class BillingService
         return expense;
     }
 
+    /// <summary>
+    /// Emite el gasto común para un periodo, prorrateando los gastos totales contra los porcentajes de unidades.
+    /// Esta operación es transaccional debido a su impacto contable.
+    /// </summary>
     public async Task<BillingSummaryDto> IssueAsync(Guid communityId, IssueBillingPeriodCommand cmd, CancellationToken ct = default)
     {
         var period = NormalizePeriod(cmd.Period);
 
+        // Lógica Transaccional: 
+        // Generar un cobro masivo bloquea registros y no debe interrumpirse a la mitad (ACID).
+        // Se valida además que los coeficientes de las unidades sumen cercano al 100%.
         await _uow.ExecuteInTransactionAsync(async token =>
         {
             // 1) Evitar doble emisión
             var existing = await _periods.GetByCommunityAndPeriodAsync(communityId, period, token);
             if (existing is not null && existing.Status == BillingPeriodStatus.Issued)
-                throw new ConflictException("Period already issued.");
+                throw new ConflictException("El periodo ya fue emitido.");
 
             // Si el BillingPeriod existe (Draft) y ya hay cargos, bloqueamos para evitar duplicados.
             if (existing is not null && existing.Status == BillingPeriodStatus.Draft)
             {
                 var hasCharges = await _charges.AnyByBillingPeriodIdAsync(existing.Id, token);
                 if (hasCharges)
-                    throw new ConflictException("Charges already generated for this period.");
+                    throw new ConflictException("Los cargos de prorrateo ya han sido generados localmente.");
             }
 
             // 2) Leer unidades (snapshot)
             var units = await _units.ListSnapshotsByCommunityAsync(communityId, token);
-            if (units.Count == 0) throw new ValidationException("No units found for this community.");
+            if (units.Count == 0) throw new ValidationException("No se encontraron unidades en esta comunidad para calcular prorrateo.");
 
             // 3) Total coeficientes
             var totalCoef = units.Sum(x => x.CoefficientPct);
-            if (totalCoef <= 0) throw new ValidationException("Total coefficient sum cannot be zero. Ensure units have valid components or coefficients.");
+            if (totalCoef <= 0) throw new ValidationException("La suma de coeficientes es cero. Asegúrese de que las unidades posean un valor válido de coeficiente.");
 
-            // (en v0.x aceptamos tolerancia; más adelante podemos exigir 100 exacto)
+            // Tolerancia temporal de (0.01) porque a veces el prorrateo decimal no da exacto 100%.
             if (decimal.Abs(totalCoef - CoefTarget) > 0.01m)
-                throw new ValidationException($"Total coefficient must be {CoefTarget} (tolerance 0.01). Current: {totalCoef:0.####}");
+                throw new ValidationException($"El coeficiente total sumado debe ser {CoefTarget} (margen de error 0.01). Actual: {totalCoef:0.####}");
 
             // 4) Total gastos
             var totalExpenses = await _expenses.GetTotalByCommunityAndPeriodAsync(communityId, period, token);
-            if (totalExpenses <= 0) throw new ValidationException("No expenses found for this period.");
+            if (totalExpenses <= 0) throw new ValidationException("No existen gastos registrados en este periodo para facturar.");
 
             // 5) Crear/actualizar BillingPeriod en Draft (si no existe)
             var billing = existing ?? new BillingPeriod
@@ -116,11 +129,10 @@ public class BillingService
             if (existing is null) await _periods.AddAsync(billing, token);
             else await _periods.UpdateAsync(billing, token);
 
-            // 6) Prorrateo + redondeo
-            //var computed = ComputeCharges(units, billing.TotalExpenses);
+            // 6) Prorrateo delegando a calculador especializado
             var computed = BillingProrationCalculator.Compute(units, billing.TotalExpenses);
 
-            // 7) Persistir UnitCharges
+            // 7) Persistir UnitCharges resultantes
             var entities = computed.Select(x => new UnitCharge
             {
                 BillingPeriodId = billing.Id,
@@ -131,18 +143,15 @@ public class BillingService
 
             await _charges.AddRangeAsync(entities, token);
 
-            // 8) Marcar como Issued
+            // 8) Marcar como Emitido
             billing.Status = BillingPeriodStatus.Issued;
             billing.IssuedAtUtc = DateTime.UtcNow;
             await _periods.UpdateAsync(billing, token);
         }, ct);
 
-        // 9) Devolver resumen (lo recalculamos desde repos en Paso 3, por ahora simple)
-        // Para no agregar más queries acá, en Paso 3 hacemos GetSummary real por repos.
-        // Igual devolvemos el "cálculo" determinístico.
+        // Retornamos el contrato final que lee datos ya asentados.
         var unitsForResponse = await _units.ListSnapshotsByCommunityAsync(communityId, ct);
         var total = await _expenses.GetTotalByCommunityAndPeriodAsync(communityId, NormalizePeriod(cmd.Period), ct);
-        //var charges = ComputeCharges(unitsForResponse, decimal.Round(total, 2, MidpointRounding.AwayFromZero));
         var charges = BillingProrationCalculator.Compute(unitsForResponse, total);
 
         return new BillingSummaryDto(
@@ -157,53 +166,29 @@ public class BillingService
 
     private static string NormalizePeriod(string period)
     {
-        if (string.IsNullOrWhiteSpace(period)) throw new ValidationException("Period is required (YYYY-MM).");
+        if (string.IsNullOrWhiteSpace(period)) throw new ValidationException("Se requiere un periodo válido (YYYY-MM).");
         period = period.Trim();
-        // Validación mínima
-        if (period.Length != 7 || period[4] != '-') throw new ValidationException("Period must be in format YYYY-MM.");
+        if (period.Length != 7 || period[4] != '-') throw new ValidationException("El periodo debe seguir el formato Año y Mes separado por guion: YYYY-MM.");
         return period;
     }
 
-    private sealed record ComputedCharge(Guid UnitId, string UnitNumber, decimal CoefficientPct, decimal Amount);
-
-    private static List<ComputedCharge> ComputeCharges(List<UnitSnapshot> units, decimal totalExpenses)
-    {
-        // calculo sin redondeo final
-        var raw = units.Select(u =>
-        {
-            var amount = totalExpenses * (u.CoefficientPct / 100m);
-            var rounded = decimal.Round(amount, 2, MidpointRounding.AwayFromZero);
-            return new ComputedCharge(u.UnitId, u.Number, u.CoefficientPct, rounded);
-        }).ToList();
-
-        // Ajuste por diferencia de redondeo para que sume exacto al total
-        var sumRounded = raw.Sum(x => x.Amount);
-        var diff = decimal.Round(totalExpenses - sumRounded, 2, MidpointRounding.AwayFromZero);
-
-        if (diff != 0)
-        {
-            var idx = raw
-                .Select((x, i) => new { x, i })
-                .OrderByDescending(t => t.x.CoefficientPct)
-                .ThenBy(t => t.x.UnitNumber)
-                .First().i;
-
-            raw[idx] = raw[idx] with { Amount = raw[idx].Amount + diff };
-        }
-
-        return raw;
-    }
-
+    /// <summary>
+    /// Obtiene el resumen consolidado de un periodo de facturación.
+    /// </summary>
     public async Task<BillingSummaryDto> GetSummaryAsync(Guid communityId, string period, CancellationToken ct = default)
     {
         period = NormalizePeriod(period);
 
         var summary = await _periods.GetSummaryAsync(communityId, period, ct);
-        if (summary is null) throw new NotFoundException("Billing period not found.");
+        if (summary is null) throw new NotFoundException("El periodo solicitado no existe.");
 
         return summary;
     }
 
+    /// <summary>
+    /// Crea gastos comunes de forma masiva (Bulk) con verificaciones preventivas y sin transaccionamiento drástico
+    /// asegurando que la aserción global de 'Issued' bloquee la insersión prematuramente.
+    /// </summary>
     public async Task<BulkResponse<Expense>> CreateExpensesBulkAsync(Guid communityId, CreateExpensesBulkCommand bulk, CancellationToken ct = default)
     {
         var results = new List<BulkItemResult<Expense>>();
@@ -214,38 +199,27 @@ public class BillingService
              return new BulkResponse<Expense>(communityId, 0, 0, 0, results);
         }
 
-        // Cachear estados de periodos para no consultar por cada item
-        // Asumimos que todos los items pueden tener periodos distintos.
-        // Pero optimización: buscar distinct periods y validar status.
-        var distinctPeriods = bulk.Expenses
-            .Select(x => x.Period)
-            .Where(p => !string.IsNullOrWhiteSpace(p))
-            .Distinct()
-            .Select(NormalizePeriod) // Cuidado: esto puede tirar excepcion si formato invalido. Mejor validar dentro del loop.
-            .ToList(); 
-        
-        // No, mejor validamos uno por uno en el loop o hacemos un pre-pass seguro.
-        // Haremos check one-by-one pero optimizado con diccionario local si se repiten.
+        // Caché local para optimizar queries a BD en caso de inserciones repetitivas del mismo periodo.
         var periodStatusCache = new Dictionary<string, bool>(); // Period -> IsIssued (true=bloqueado)
 
         foreach (var (cmd, index) in bulk.Expenses.Select((c, i) => (c, i)))
         {
             try
             {
-                var period = NormalizePeriod(cmd.Period); // throws ValidationException
+                var period = NormalizePeriod(cmd.Period); 
                 
                 if (string.IsNullOrWhiteSpace(cmd.Description)) 
                 {
-                    results.Add(new BulkItemResult<Expense>(index, false, "Description is required", null));
+                    results.Add(new BulkItemResult<Expense>(index, false, "La descripción es requerida", null));
                     continue;
                 }
                 if (cmd.Amount <= 0)
                 {
-                    results.Add(new BulkItemResult<Expense>(index, false, "Amount must be > 0", null));
+                    results.Add(new BulkItemResult<Expense>(index, false, "El monto debe ser numérico mayor a 0", null));
                     continue;
                 }
 
-                // Check Period Status
+                // Verificación de estado de Periodo
                 if (!periodStatusCache.ContainsKey(period))
                 {
                     var isIssued = await _expenses.AnyForIssuedPeriodAsync(communityId, period, ct);
@@ -254,11 +228,11 @@ public class BillingService
 
                 if (periodStatusCache[period])
                 {
-                    results.Add(new BulkItemResult<Expense>(index, false, "Period is already issued", null));
+                    results.Add(new BulkItemResult<Expense>(index, false, "El periodo se encuentra cerrado/emitido", null));
                     continue;
                 }
 
-                // Exito
+                // Generación
                 var expense = new Expense
                 {
                     CommunityId = communityId,
@@ -278,7 +252,8 @@ public class BillingService
             }
             catch (Exception ex)
             {
-                 results.Add(new BulkItemResult<Expense>(index, false, "Internal error: " + ex.Message, null));
+                 // Nota de Seguridad: Evitamos fugas de traza completa exponiendo solo el Message base para Bulk Logs
+                 results.Add(new BulkItemResult<Expense>(index, false, "Fallo interno procesando este elemento: " + ex.Message, null));
             }
         }
 
@@ -293,29 +268,30 @@ public class BillingService
         return new BulkResponse<Expense>(communityId, bulk.Expenses.Count, createdCount, failedCount, results);
     }
 
+    /// <summary>
+    /// Consolida el estado de cuenta y facturación mensual particular para una Unidad específica.
+    /// Recupera información de saldos previos, sumas actuales y abonos registrados calculando matemáticamente
+    /// la deuda total vencida y facturada (Gasto Común mensual integral).
+    /// </summary>
     public async Task<UnitStatementDto> GetUnitStatementAsync(Guid communityId, Guid unitId, string period, CancellationToken ct)
     {
         period = NormalizePeriod(period);
 
         // 1. Validar comunidad y obtener unidad
-        // Usamos ListSnapshotsByCommunityAsync porque IUnitReadRepository no tiene GetById
         var units = await _units.ListSnapshotsByCommunityAsync(communityId, ct);
-        var unit = units.FirstOrDefault(u => u.UnitId == unitId);
-        
-        if (unit is null)
-            throw new NotFoundException($"Unit {unitId} not found in community {communityId}.");
+        var unit = units.FirstOrDefault(u => u.UnitId == unitId) 
+                   ?? throw new NotFoundException($"La unidad no se encuentra en la comunidad {communityId}.");
 
-        // 2. Saldo Anterior (Previous Balance)
+        // 2. Saldo Anterior (Suma algebraica de cargos previos - pagos previos)
         var chargesBefore = await _charges.GetChargesBeforePeriodAsync(communityId, unitId, period, ct);
         var manualChargesBefore = await _manualCharges.GetBeforePeriodAsync(communityId, unitId, period, ct);
         var paymentsBefore = await _payments.GetPaymentsBeforePeriodAsync(communityId, unitId, period, ct);
 
         var chargesBeforeTotal = chargesBefore.Sum(x => x.Amount) + manualChargesBefore.Sum(x => x.Amount);
         var paymentsBeforeTotal = paymentsBefore.Sum(x => x.Amount);
-        
         var previousBalance = chargesBeforeTotal - paymentsBeforeTotal;
 
-        // 3. Movimientos del Periodo (Current Charges & Payments)
+        // 3. Movimientos del Periodo (Suma actual - pagos mes en curso)
         var currentCharges = await _charges.GetChargesForPeriodAsync(communityId, unitId, period, ct);
         var manualCharges = await _manualCharges.GetForUnitAndPeriodAsync(communityId, unitId, period, ct);
         var currentPayments = await _payments.GetPaymentsForPeriodAsync(communityId, unitId, period, ct);
@@ -323,10 +299,10 @@ public class BillingService
         var currentChargesTotal = currentCharges.Sum(x => x.Amount) + manualCharges.Sum(x => x.Amount);
         var paymentsTotal = currentPayments.Sum(x => x.Amount);
 
-        // 4. Total a Pagar
+        // 4. Deuda Integral Resultante
         var totalDue = previousBalance + currentChargesTotal - paymentsTotal;
 
-        // 5. Construir Líneas
+        // 5. Construir detalle transaccional (Extracto)
         var lines = new List<StatementLineDto>();
 
         // Agregamos cargos por coeficiente (Gasto Común)
@@ -338,7 +314,7 @@ public class BillingService
             Period: period
         )));
 
-        // Agregamos cargos manuales (Reservas, etc)
+        // Agregamos cargos manuales (Consumos, Reservas, Multas)
         lines.AddRange(manualCharges.Select(c => new StatementLineDto(
             Type: "Charge",
             Description: c.Description,
@@ -347,23 +323,21 @@ public class BillingService
             Period: period
         )));
 
-        // Agregamos pagos
+        // Agregamos pagos o abonos (Deposit/Transfer)
         lines.AddRange(currentPayments.Select(p => new StatementLineDto(
             Type: "Payment",
-            Description: "Abono",
+            Description: "Abono / Pago Gasto Común",
             Amount: p.Amount, 
             Date: p.PaidAtUtc,
             Period: p.Period
         )));
 
-        // Ordenar por fecha
+        // Estructura ordenada cronológicamente
         lines = lines.OrderBy(x => x.Date).ToList();
 
-        // 6. Calcular DueDate
+        // 6. Fechas de Expiración
         var dueDay = _config.GetValue<int>("Billing:DueDayOfMonth", 0);
         
-        // Asumimos vencimiento en el mes SIGUIENTE al periodo.
-        // Ejemplo: Periodo 2024-01-01 -> Vencimiento Feb.
         var parts = period.Split('-');
         var year = int.Parse(parts[0]);
         var month = int.Parse(parts[1]);
@@ -379,9 +353,7 @@ public class BillingService
         }
         else
         {
-             // Default: día 10 del mes siguiente si no hay config
-             // O último día del mes siguiente? El usuario dijo "o último día del mes si no existe" refiriéndose al nro de día.
-             // Asumiremos día 10 por defecto si no hay config.
+             // Por defecto se toma el día 10 si no ha sido explícitamente parametrizado.
              dueDay = 10;
              var daysInNextMonth = DateTime.DaysInMonth(nextMonth.Year, nextMonth.Month);
              var day = Math.Min(dueDay, daysInNextMonth);
@@ -403,5 +375,4 @@ public class BillingService
             Lines: lines
         );
     }
-
 }

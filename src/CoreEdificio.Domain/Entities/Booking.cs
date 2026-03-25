@@ -1,5 +1,8 @@
 namespace CoreEdificio.Domain.Entities;
 
+/// <summary>
+/// Representa una reserva realizada para una instalación.
+/// </summary>
 public class Booking
 {
     public Guid Id { get; set; } = Guid.NewGuid();

@@ -1,0 +1,130 @@
+﻿  Determinando los proyectos que se van a restaurar...
+  Todos los proyectos est├ín actualizados para la restauraci├│n.
+  CoreEdificio.Domain -> c:\Sistemas\core-edificio\src\CoreEdificio.Domain\bin\Debug\net9.0\CoreEdificio.Domain.dll
+  CoreEdificio.Application -> c:\Sistemas\core-edificio\src\CoreEdificio.Application\bin\Debug\net9.0\CoreEdificio.Application.dll
+  CoreEdificio.Infrastructure -> c:\Sistemas\core-edificio\src\CoreEdificio.Infrastructure\bin\Debug\net9.0\CoreEdificio.Infrastructure.dll
+  CoreEdificio.Api -> c:\Sistemas\core-edificio\src\CoreEdificio.Api\bin\Debug\net9.0\CoreEdificio.Api.dll
+  CoreEdificio.Tests -> c:\Sistemas\core-edificio\src\tests\CoreEdificio.Tests\bin\Debug\net9.0\CoreEdificio.Tests.dll
+Serie de pruebas para c:\Sistemas\core-edificio\src\tests\CoreEdificio.Tests\bin\Debug\net9.0\CoreEdificio.Tests.dll (.NETCoreApp,Version=v9.0)
+Versi├│n 18.0.1 (x64) de VSTest
+
+Iniciando la ejecuci├│n de pruebas, espere...
+1 archivos de prueba en total coincidieron con el patr├│n especificado.
+[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v2.8.2+699d445a1a (64-bit .NET 9.0.12)
+[xUnit.net 00:00:00.26]   Discovering: CoreEdificio.Tests
+[xUnit.net 00:00:00.37]   Discovered:  CoreEdificio.Tests
+[xUnit.net 00:00:00.38]   Starting:    CoreEdificio.Tests
+  Correctas CoreEdificio.Tests.Billing.UnitGetTotalCoefficientTests.GetTotalCoefficientPct_WithNoActiveComponents_ShouldFallbackToLegacyCoefficient [21 ms]
+  Correctas CoreEdificio.Tests.Billing.UnitGetTotalCoefficientTests.GetTotalCoefficientPct_WithAllInactiveComponents_ShouldFallbackToLegacyCoefficient [1 ms]
+  Correctas CoreEdificio.Tests.Billing.UnitGetTotalCoefficientTests.GetTotalCoefficientPct_WithActiveComponents_ShouldSumThem [1 ms]
+  Correctas CoreEdificio.Tests.Billing.UnitGetTotalCoefficientTests.GetTotalCoefficientPct_WithInactiveComponents_ShouldIgnoreThem [< 1 ms]
+  Correctas CoreEdificio.Tests.Billing.BillingProrationCalculatorTests.Compute_WhenTieOnCoefficient_Should_AssignDiff_ToLowestUnitNumber [34 ms]
+  Correctas CoreEdificio.Tests.Billing.BillingProrationCalculatorTests.Compute_Should_AssignRoundingDiff_ToHighestCoefficientUnit [1 ms]
+  Correctas CoreEdificio.Tests.Billing.BillingProrationCalculatorTests.Compute_Should_Use_AwayFromZero_Rounding [< 1 ms]
+  Correctas CoreEdificio.Tests.Billing.BillingProrationCalculatorTests.Compute_Should_SumExactlyToTotalExpenses_AfterRounding [7 ms]
+  Correctas CoreEdificio.Tests.UnitStatementTests.GetUnitStatement_PreviousBalance_ShouldBeTotalCharges_WhenNoPayments [276 ms]
+  Correctas CoreEdificio.Tests.Bulk.UnitBulkWithComponentsTests.CreateBulkWithComponentsAsync_ShouldFail_WhenComponentAlreadyInDB [280 ms]
+[xUnit.net 00:00:00.81]       Assert.Contains() Failure: Sub-string not found
+[xUnit.net 00:00:00.81]       String:    "El monto debe ser num├®rico mayor a 0"
+[xUnit.net 00:00:00.81]       Not found: "Amount must be > 0"
+[xUnit.net 00:00:00.81]       Stack Trace:
+[xUnit.net 00:00:00.81]         c:\Sistemas\core-edificio\src\tests\CoreEdificio.Tests\BulkOperationsTests.cs(101,0): at CoreEdificio.Tests.BulkOperationsTests.CreateExpensesBulk_ShouldValidateAmount()
+[xUnit.net 00:00:00.82]         --- End of stack trace from previous location ---
+[xUnit.net 00:00:00.82]       Assert.Contains() Failure: Sub-string not found
+[xUnit.net 00:00:00.82]       String:    "Comando duplicado en la misma petici├│n"
+[xUnit.net 00:00:00.82]       Not found: "Duplicate in request"
+[xUnit.net 00:00:00.82]       Stack Trace:
+[xUnit.net 00:00:00.82]         c:\Sistemas\core-edificio\src\tests\CoreEdificio.Tests\BulkOperationsTests.cs(73,0): at CoreEdificio.Tests.BulkOperationsTests.CreateBulk_ShouldDetectDuplicatesInRequest()
+[xUnit.net 00:00:00.82]         --- End of stack trace from previous location ---
+  Correctas CoreEdificio.Tests.Bulk.UnitBulkWithComponentsTests.CreateBulkWithComponentsAsync_ShouldHandlePartialSuccess_WhenUnitAlreadyInDB [15 ms]
+  Con error CoreEdificio.Tests.BulkOperationsTests.CreateExpensesBulk_ShouldValidateAmount [273 ms]
+  Mensaje de error:
+   Assert.Contains() Failure: Sub-string not found
+String:    "El monto debe ser num├®rico mayor a 0"
+Not found: "Amount must be > 0"
+  Seguimiento de la pila:
+     at CoreEdificio.Tests.BulkOperationsTests.CreateExpensesBulk_ShouldValidateAmount() in c:\Sistemas\core-edificio\src\tests\CoreEdificio.Tests\BulkOperationsTests.cs:line 101
+--- End of stack trace from previous location ---
+  Correctas CoreEdificio.Tests.Bulk.UnitBulkWithComponentsTests.CreateBulkWithComponentsAsync_ShouldFailUnit_WhenComponentIsInvalid [7 ms]
+  Correctas CoreEdificio.Tests.UnitStatementTests.GetUnitStatement_ShouldIncludeComponentsAndTotalCoefficient [34 ms]
+  Correctas CoreEdificio.Tests.Bulk.UnitBulkWithComponentsTests.CreateBulkWithComponentsAsync_ShouldFail_WhenComponentIsSharedInRequest [8 ms]
+  Con error CoreEdificio.Tests.BulkOperationsTests.CreateBulk_ShouldDetectDuplicatesInRequest [14 ms]
+  Mensaje de error:
+   Assert.Contains() Failure: Sub-string not found
+String:    "Comando duplicado en la misma petici├│n"
+Not found: "Duplicate in request"
+  Seguimiento de la pila:
+     at CoreEdificio.Tests.BulkOperationsTests.CreateBulk_ShouldDetectDuplicatesInRequest() in c:\Sistemas\core-edificio\src\tests\CoreEdificio.Tests\BulkOperationsTests.cs:line 73
+--- End of stack trace from previous location ---
+  Correctas CoreEdificio.Tests.Bulk.UnitBulkWithComponentsTests.CreateBulkWithComponentsAsync_ShouldHandleDuplicates_InRequest [7 ms]
+  Correctas CoreEdificio.Tests.Bulk.UnitBulkWithComponentsTests.CreateBulkWithComponentsAsync_ShouldCreateUnits_WhenValid [21 ms]
+  Correctas CoreEdificio.Tests.UnitStatementTests.GetUnitStatement_TotalDue_ShouldSubtractCurrentPayments [30 ms]
+  Correctas CoreEdificio.Tests.UnitTest1.Test1 [< 1 ms]
+  Correctas CoreEdificio.Tests.UnitStatementTests.GetUnitStatement_PreviousBalance_ShouldBeChargesMinusPayments [24 ms]
+  Correctas CoreEdificio.Tests.UserProvisioningServiceTests.CreateUserAsync_ResidentWithUnit_ShouldCreateUserUnitAssociation [3 s]
+  Correctas CoreEdificio.Tests.FacilitiesControllerTests.CreatePaidAndDepositWithAmounts_ReturnsCreated [3 s]
+[xUnit.net 00:00:04.08]       CoreEdificio.Application.Common.ValidationException : El monto de arriendo debe ser mayor a cero.
+[xUnit.net 00:00:04.09]       Stack Trace:
+[xUnit.net 00:00:04.09]         c:\Sistemas\core-edificio\src\CoreEdificio.Application\Services\FacilityService.cs(150,0): at CoreEdificio.Application.Services.FacilityService.ValidateRules(String name, Int32 slotDurationMinutes, FacilityChargingMode chargingMode, Int32 rentAmountClp, Int32 depositAmountClp)
+[xUnit.net 00:00:04.09]         c:\Sistemas\core-edificio\src\CoreEdificio.Application\Services\FacilityService.cs(54,0): at CoreEdificio.Application.Services.FacilityService.CreateAsync(Guid communityId, CreateFacilityDto request, CancellationToken ct)
+[xUnit.net 00:00:04.09]         c:\Sistemas\core-edificio\src\CoreEdificio.Api\Controllers\FacilitiesController.cs(240,0): at CoreEdificio.Api.Controllers.FacilitiesController.Create(Guid communityId, CreateFacilityRequest request, CancellationToken ct)
+[xUnit.net 00:00:04.09]         c:\Sistemas\core-edificio\src\tests\CoreEdificio.Tests\FacilitiesControllerTests.cs(74,0): at CoreEdificio.Tests.FacilitiesControllerTests.CreatePaidWithZeroRent_ReturnsBadRequest()
+[xUnit.net 00:00:04.09]         c:\Sistemas\core-edificio\src\tests\CoreEdificio.Tests\FacilitiesControllerTests.cs(76,0): at CoreEdificio.Tests.FacilitiesControllerTests.CreatePaidWithZeroRent_ReturnsBadRequest()
+[xUnit.net 00:00:04.09]         --- End of stack trace from previous location ---
+  Correctas CoreEdificio.Tests.Billing.BillingServiceProrationIntegrationTests.IssueAsync_Should_UseCompositeCoefficients_ForProration [3 s]
+  Correctas CoreEdificio.Tests.FacilityAvailabilityTests.GetAvailability_ReturnsMergedResults [3 s]
+  Correctas CoreEdificio.Tests.BookingsControllerTests.GetById_ResidentOwnBooking_ReturnsOk [3 s]
+  Correctas CoreEdificio.Tests.BookingServiceTests.CreateBooking_WithApproval_SetsPendingApproval_NoCharges [3 s]
+  Correctas CoreEdificio.Tests.BookingsControllerTests.ResidentBookingForOtherUnit_ReturnsForbid [193 ms]
+  Con error CoreEdificio.Tests.FacilitiesControllerTests.CreatePaidWithZeroRent_ReturnsBadRequest [292 ms]
+  Mensaje de error:
+   CoreEdificio.Application.Common.ValidationException : El monto de arriendo debe ser mayor a cero.
+  Seguimiento de la pila:
+     at CoreEdificio.Application.Services.FacilityService.ValidateRules(String name, Int32 slotDurationMinutes, FacilityChargingMode chargingMode, Int32 rentAmountClp, Int32 depositAmountClp) in c:\Sistemas\core-edificio\src\CoreEdificio.Application\Services\FacilityService.cs:line 150
+   at CoreEdificio.Application.Services.FacilityService.CreateAsync(Guid communityId, CreateFacilityDto request, CancellationToken ct) in c:\Sistemas\core-edificio\src\CoreEdificio.Application\Services\FacilityService.cs:line 54
+   at CoreEdificio.Api.Controllers.FacilitiesController.Create(Guid communityId, CreateFacilityRequest request, CancellationToken ct) in c:\Sistemas\core-edificio\src\CoreEdificio.Api\Controllers\FacilitiesController.cs:line 240
+   at CoreEdificio.Tests.FacilitiesControllerTests.CreatePaidWithZeroRent_ReturnsBadRequest() in c:\Sistemas\core-edificio\src\tests\CoreEdificio.Tests\FacilitiesControllerTests.cs:line 74
+   at CoreEdificio.Tests.FacilitiesControllerTests.CreatePaidWithZeroRent_ReturnsBadRequest() in c:\Sistemas\core-edificio\src\tests\CoreEdificio.Tests\FacilitiesControllerTests.cs:line 76
+--- End of stack trace from previous location ---
+[xUnit.net 00:00:04.20]       CoreEdificio.Application.Common.ValidationException : Las instalaciones gratuitas deben tener montos de arriendo y garant├¡a en 0.
+[xUnit.net 00:00:04.20]       Stack Trace:
+[xUnit.net 00:00:04.20]         c:\Sistemas\core-edificio\src\CoreEdificio.Application\Services\FacilityService.cs(146,0): at CoreEdificio.Application.Services.FacilityService.ValidateRules(String name, Int32 slotDurationMinutes, FacilityChargingMode chargingMode, Int32 rentAmountClp, Int32 depositAmountClp)
+[xUnit.net 00:00:04.20]         c:\Sistemas\core-edificio\src\CoreEdificio.Application\Services\FacilityService.cs(54,0): at CoreEdificio.Application.Services.FacilityService.CreateAsync(Guid communityId, CreateFacilityDto request, CancellationToken ct)
+[xUnit.net 00:00:04.20]         c:\Sistemas\core-edificio\src\CoreEdificio.Api\Controllers\FacilitiesController.cs(240,0): at CoreEdificio.Api.Controllers.FacilitiesController.Create(Guid communityId, CreateFacilityRequest request, CancellationToken ct)
+[xUnit.net 00:00:04.20]         c:\Sistemas\core-edificio\src\tests\CoreEdificio.Tests\FacilitiesControllerTests.cs(47,0): at CoreEdificio.Tests.FacilitiesControllerTests.CreateFreeWithAmounts_ReturnsBadRequest()
+[xUnit.net 00:00:04.20]         c:\Sistemas\core-edificio\src\tests\CoreEdificio.Tests\FacilitiesControllerTests.cs(49,0): at CoreEdificio.Tests.FacilitiesControllerTests.CreateFreeWithAmounts_ReturnsBadRequest()
+[xUnit.net 00:00:04.20]         --- End of stack trace from previous location ---
+  Correctas CoreEdificio.Tests.FacilityAvailabilityTests.GetAvailabilitySlots_BlockedWinsOverBooking [237 ms]
+  Correctas CoreEdificio.Tests.BookingServiceTests.CancelBooking_SetsStatus [227 ms]
+  Con error CoreEdificio.Tests.FacilitiesControllerTests.CreateFreeWithAmounts_ReturnsBadRequest [106 ms]
+  Mensaje de error:
+   CoreEdificio.Application.Common.ValidationException : Las instalaciones gratuitas deben tener montos de arriendo y garant├¡a en 0.
+  Seguimiento de la pila:
+     at CoreEdificio.Application.Services.FacilityService.ValidateRules(String name, Int32 slotDurationMinutes, FacilityChargingMode chargingMode, Int32 rentAmountClp, Int32 depositAmountClp) in c:\Sistemas\core-edificio\src\CoreEdificio.Application\Services\FacilityService.cs:line 146
+   at CoreEdificio.Application.Services.FacilityService.CreateAsync(Guid communityId, CreateFacilityDto request, CancellationToken ct) in c:\Sistemas\core-edificio\src\CoreEdificio.Application\Services\FacilityService.cs:line 54
+   at CoreEdificio.Api.Controllers.FacilitiesController.Create(Guid communityId, CreateFacilityRequest request, CancellationToken ct) in c:\Sistemas\core-edificio\src\CoreEdificio.Api\Controllers\FacilitiesController.cs:line 240
+   at CoreEdificio.Tests.FacilitiesControllerTests.CreateFreeWithAmounts_ReturnsBadRequest() in c:\Sistemas\core-edificio\src\tests\CoreEdificio.Tests\FacilitiesControllerTests.cs:line 47
+   at CoreEdificio.Tests.FacilitiesControllerTests.CreateFreeWithAmounts_ReturnsBadRequest() in c:\Sistemas\core-edificio\src\tests\CoreEdificio.Tests\FacilitiesControllerTests.cs:line 49
+--- End of stack trace from previous location ---
+  Correctas CoreEdificio.Tests.BookingsControllerTests.Complete_Approved_SetsStatus [117 ms]
+  Correctas CoreEdificio.Tests.FacilitiesControllerTests.CommunityScopeHandler_MismatchedCommunity_DoesNotSucceed [10 ms]
+  Correctas CoreEdificio.Tests.FacilityAvailabilityTests.GetAvailabilitySlots_GeneratesCorrectCount [99 ms]
+  Correctas CoreEdificio.Tests.FacilityAvailabilityTests.GetAvailability_RoleBasedVisibility_ResidentSeesNoUnitNumber [100 ms]
+  Correctas CoreEdificio.Tests.BookingServiceTests.CreateBooking_WithoutApproval_SetsApproved_AndGeneratesCharges [226 ms]
+  Correctas CoreEdificio.Tests.FacilityAvailabilityTests.GetAvailability_RespectsRangeLimit [73 ms]
+  Correctas CoreEdificio.Tests.FacilityAvailabilityTests.GetAvailabilitySlots_RangeLimit_ThrowsBadRequest [74 ms]
+  Correctas CoreEdificio.Tests.BookingServiceTests.CompleteBooking_Approved_SetsStatusAndTimestamp [83 ms]
+  Correctas CoreEdificio.Tests.BookingServiceTests.MarkNoShow_Idempotent [112 ms]
+  Correctas CoreEdificio.Tests.BookingServiceTests.CancelBooking_WithinPenaltyWindow_GeneratesFine [106 ms]
+  Correctas CoreEdificio.Tests.BookingServiceTests.CreateBooking_AfterBlockDeactivated_SetsApproved [87 ms]
+  Correctas CoreEdificio.Tests.BookingServiceTests.CompleteBooking_NotApproved_ThrowsValidation [88 ms]
+  Correctas CoreEdificio.Tests.BookingServiceTests.ApproveBooking_GeneratesCharges_Once [90 ms]
+  Correctas CoreEdificio.Tests.BookingServiceTests.MarkNoShow_GeneratesFine [76 ms]
+[xUnit.net 00:00:05.16]   Finished:    CoreEdificio.Tests
+  Correctas CoreEdificio.Tests.BookingServiceTests.CancelBooking_OutsidePenaltyWindow_NoFine [64 ms]
+  Correctas CoreEdificio.Tests.BookingServiceTests.CreateBooking_WithFacilityBlock_ThrowsValidation [59 ms]
+
+Pruebas totales: 48
+     Correcto: 44
+     Incorrecto: 4
+ Tiempo total: 6.1129 Segundos

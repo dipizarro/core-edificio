@@ -14,6 +14,14 @@ namespace CoreEdificio.Tests;
 
 public class FacilityAvailabilityTests
 {
+    private static FacilitiesController CreateController(AppDbContext db)
+    {
+        var repo = new CoreEdificio.Infrastructure.Repositories.FacilityRepository(db);
+        var communityRepo = new CoreEdificio.Infrastructure.Repositories.CommunityRepository(db);
+        var service = new CoreEdificio.Application.Services.FacilityService(repo, communityRepo);
+        return new FacilitiesController(service, db);
+    }
+
     [Fact]
     public async Task GetAvailability_ReturnsMergedResults()
     {
@@ -60,7 +68,7 @@ public class FacilityAvailabilityTests
 
         await db.SaveChangesAsync();
 
-        var controller = new FacilitiesController(db);
+        var controller = CreateController(db);
         SetUser(controller, communityId, "Committee");
 
         var from = new DateTime(2026, 2, 1, 0, 0, 0, DateTimeKind.Utc);
@@ -82,7 +90,7 @@ public class FacilityAvailabilityTests
     public async Task GetAvailability_RespectsRangeLimit()
     {
         await using var db = await CreateDbAsync();
-        var controller = new FacilitiesController(db);
+        var controller = CreateController(db);
         
         var from = DateTime.UtcNow;
         var to = from.AddDays(32);
@@ -116,7 +124,7 @@ public class FacilityAvailabilityTests
         });
         await db.SaveChangesAsync();
 
-        var controller = new FacilitiesController(db);
+        var controller = CreateController(db);
         SetUser(controller, communityId, "Resident");
 
         var result = await controller.GetAvailability(communityId, facilityId, DateTime.UtcNow.AddDays(-1), DateTime.UtcNow.AddDays(1), CancellationToken.None);
@@ -137,7 +145,7 @@ public class FacilityAvailabilityTests
         db.Facilities.Add(new Facility { Id = facilityId, CommunityId = communityId, Name = "Q", IsActive = true, SlotDurationMinutes = 60 });
         await db.SaveChangesAsync();
 
-        var controller = new FacilitiesController(db);
+        var controller = CreateController(db);
         SetUser(controller, communityId, "Resident");
 
         var from = new DateTime(2026, 2, 1, 10, 0, 0, DateTimeKind.Utc);
@@ -176,7 +184,7 @@ public class FacilityAvailabilityTests
 
         await db.SaveChangesAsync();
 
-        var controller = new FacilitiesController(db);
+        var controller = CreateController(db);
         SetUser(controller, communityId, "Resident");
 
         var result = await controller.GetAvailabilitySlots(communityId, facilityId, start, end, CancellationToken.None);
@@ -193,7 +201,7 @@ public class FacilityAvailabilityTests
     public async Task GetAvailabilitySlots_RangeLimit_ThrowsBadRequest()
     {
         await using var db = await CreateDbAsync();
-        var controller = new FacilitiesController(db);
+        var controller = CreateController(db);
         var from = DateTime.UtcNow;
         var to = from.AddDays(15);
         var result = await controller.GetAvailabilitySlots(Guid.NewGuid(), Guid.NewGuid(), from, to, CancellationToken.None);

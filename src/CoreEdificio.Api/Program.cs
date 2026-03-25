@@ -1,4 +1,4 @@
-﻿using CoreEdificio.Api.Auth;
+using CoreEdificio.Api.Auth;
 using CoreEdificio.Api.Middlewares;
 using CoreEdificio.Application.Interfaces;
 using CoreEdificio.Application.Interfaces.Billing;
@@ -21,24 +21,29 @@ using Microsoft.OpenApi.Models;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
+var configuration = builder.Configuration;
 
+// 1. Configuraciones iniciales
 builder.Services.AddControllers();
+builder.Services.AddEndpointsApiExplorer();
 
+// 2. Configuración de CORS basada en appsettings
+var allowedOrigins = configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? new[] { "http://localhost:5173" };
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("DevCorsPolicy", policy =>
+    options.AddPolicy("DefaultCorsPolicy", policy =>
     {
-        policy.WithOrigins("http://localhost:5173")
+        policy.WithOrigins(allowedOrigins)
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials();
     });
 });
-builder.Services.AddEndpointsApiExplorer();
+
+// 3. Documentación Swagger
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo { Title = "CoreEdificio API", Version = "v1" });
-
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Name = "Authorization",
@@ -48,76 +53,34 @@ builder.Services.AddSwaggerGen(c =>
         In = ParameterLocation.Header,
         Description = "Ingrese: Bearer {token}"
     });
-
-    c.AddSecurityRequirement(new OpenApiSecurityRequirement
-    {
-        {
-            new OpenApiSecurityScheme
-            {
-                Reference = new OpenApiReference
-                {
-                    Type = ReferenceType.SecurityScheme,
-                    Id = "Bearer"
-                }
-            },
-            Array.Empty<string>()
-        }
-    });
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement { { new OpenApiSecurityScheme { Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" } } , Array.Empty<string>() } });
 });
 
-
+// 4. Base de Datos
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("Default")));
+    options.UseSqlServer(configuration.GetConnectionString("Default") 
+        ?? throw new InvalidOperationException("Connection string 'Default' not found.")));
 
-/********** DI registrations **********/
-builder.Services.AddScoped<ICommunityRepository, CommunityRepository>();
-builder.Services.AddScoped<IUnitRepository, UnitRepository>();
-builder.Services.AddScoped<IBookingRepository, BookingRepository>();
-builder.Services.AddScoped<IExpenseRepository, ExpenseRepository>();
-builder.Services.AddScoped<IBillingPeriodRepository, BillingPeriodRepository>();
-builder.Services.AddScoped<IUnitChargeRepository, UnitChargeRepository>();
-builder.Services.AddScoped<IUnitReadRepository, UnitReadRepository>();
-builder.Services.AddScoped<IChargeRepository, ChargeRepository>();
-builder.Services.AddScoped<IFacilityBlockRepository, FacilityBlockRepository>();
-builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
-builder.Services.AddScoped<IPaymentRepository, PaymentRepository>();
-builder.Services.AddScoped<IBillingReadRepository, BillingReadRepository>();
-builder.Services.AddScoped<UserProvisioningService>();
+// TODO: Refactor -> Mover a CoreEdificio.Infrastructure.DependencyInjection.cs (services.AddInfrastructure())
+RegisterInfrastructureServices(builder.Services);
 
-builder.Services.AddSingleton<IAuthorizationHandler, CommunityScopeHandler>();
-builder.Services.AddSingleton<IAuthorizationHandler, UnitScopeHandler>();
+// TODO: Refactor -> Mover a CoreEdificio.Application.DependencyInjection.cs (services.AddApplication())
+RegisterApplicationServices(builder.Services);
 
-
-builder.Services.AddScoped<IIdentityService, IdentityService>();
-builder.Services.AddScoped<PaymentsService>();
-builder.Services.AddScoped<BillingService>();
-builder.Services.AddScoped<CommunityService>();
-builder.Services.AddScoped<UnitService>();
-builder.Services.AddScoped<BookingService>();
-builder.Services.AddScoped<JwtTokenService>();
-builder.Services.AddScoped<IStatementPdfGenerator, QuestStatementPdfGenerator>();
-
-/********** AUTH **********/
-builder.Services
-    .AddIdentityCore<ApplicationUser>(options =>
+// 5. Autenticación e Identidad
+builder.Services.AddIdentityCore<ApplicationUser>(options =>
     {
-        options.Password.RequireDigit = false;
-        options.Password.RequireLowercase = false;
-        options.Password.RequireNonAlphanumeric = false;
-        options.Password.RequireUppercase = false;
-        options.Password.RequiredLength = 6;
+        // Se recomienda obtener estas reglas de configuración (appsettings)
+        options.Password.RequireDigit = true;
+        options.Password.RequiredLength = 8;
         options.User.RequireUniqueEmail = true;
     })
     .AddRoles<IdentityRole<Guid>>()
     .AddEntityFrameworkStores<AppDbContext>()
     .AddSignInManager();
 
-var jwtKey = builder.Configuration["Jwt:Key"]!;
-var issuer = builder.Configuration["Jwt:Issuer"];
-var audience = builder.Configuration["Jwt:Audience"];
-
-builder.Services
-    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+var jwtKey = configuration["Jwt:Key"] ?? throw new ArgumentNullException("Jwt:Key is missing in configuration");
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
         options.TokenValidationParameters = new TokenValidationParameters
@@ -126,25 +89,19 @@ builder.Services
             ValidateAudience = true,
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
-            ValidIssuer = issuer,
-            ValidAudience = audience,
+            ValidIssuer = configuration["Jwt:Issuer"],
+            ValidAudience = configuration["Jwt:Audience"],
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
             ClockSkew = TimeSpan.FromSeconds(30)
         };
     });
 
-
+// 6. Autorización
 builder.Services.AddAuthorization(options =>
 {
-    options.AddPolicy(AuthPolicies.CommunityScope, policy =>
-        policy.RequireAuthenticatedUser()
-              .AddRequirements(new CommunityScopeRequirement()));
-
-    options.AddPolicy(AuthPolicies.UnitScope, policy =>
-        policy.RequireAuthenticatedUser()
-              .AddRequirements(new UnitScopeRequirement()));
+    options.AddPolicy(AuthPolicies.CommunityScope, policy => policy.RequireAuthenticatedUser().AddRequirements(new CommunityScopeRequirement()));
+    options.AddPolicy(AuthPolicies.UnitScope, policy => policy.RequireAuthenticatedUser().AddRequirements(new UnitScopeRequirement()));
 });
-
 
 builder.Services.AddHealthChecks();
 
@@ -157,23 +114,57 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 
-    /********** SEEDER de usuarios y roles **********/
+    // Seeder
     using var scope = app.Services.CreateScope();
-
-    var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-    var roles = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
-    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-    await IdentitySeeder.SeedAsync(users, roles, db);
+    var services = scope.ServiceProvider;
+    await IdentitySeeder.SeedAsync(
+        services.GetRequiredService<UserManager<ApplicationUser>>(),
+        services.GetRequiredService<RoleManager<IdentityRole<Guid>>>(),
+        services.GetRequiredService<AppDbContext>(),
+        services.GetService<ILoggerFactory>()?.CreateLogger("IdentitySeeder")
+    );
 }
 
 app.UseHttpsRedirection();
 app.UseMiddleware<ExceptionMiddleware>();
-app.UseCors("DevCorsPolicy");
+app.UseCors("DefaultCorsPolicy");
 app.UseAuthentication();
 app.UseAuthorization();
-
 app.MapControllers();
-
-
 app.Run();
+
+// --- Métodos locales para organizar la DI (Paso intermedio hacia Clean Architecture pura) ---
+void RegisterInfrastructureServices(IServiceCollection services)
+{
+    services.AddScoped<ICommunityRepository, CommunityRepository>();
+    services.AddScoped<IUnitRepository, UnitRepository>();
+    services.AddScoped<IBookingRepository, BookingRepository>();
+    services.AddScoped<IExpenseRepository, ExpenseRepository>();
+    services.AddScoped<IBillingPeriodRepository, BillingPeriodRepository>();
+    services.AddScoped<IUnitChargeRepository, UnitChargeRepository>();
+    services.AddScoped<IUnitReadRepository, UnitReadRepository>();
+    services.AddScoped<IChargeRepository, ChargeRepository>();
+    services.AddScoped<IFacilityBlockRepository, FacilityBlockRepository>();
+    services.AddScoped<IFacilityRepository, FacilityRepository>();
+    services.AddScoped<IUnitOfWork, UnitOfWork>();
+    services.AddScoped<IPaymentRepository, PaymentRepository>();
+    services.AddScoped<IBillingReadRepository, BillingReadRepository>();
+    
+    services.AddScoped<IIdentityService, IdentityService>();
+    services.AddScoped<IStatementPdfGenerator, QuestStatementPdfGenerator>();
+    services.AddScoped<JwtTokenService>();
+    
+    services.AddSingleton<IAuthorizationHandler, CommunityScopeHandler>();
+    services.AddSingleton<IAuthorizationHandler, UnitScopeHandler>();
+}
+
+void RegisterApplicationServices(IServiceCollection services)
+{
+    services.AddScoped<UserProvisioningService>();
+    services.AddScoped<PaymentsService>();
+    services.AddScoped<BillingService>();
+    services.AddScoped<CommunityService>();
+    services.AddScoped<UnitService>();
+    services.AddScoped<FacilityService>();
+    services.AddScoped<BookingService>();
+}

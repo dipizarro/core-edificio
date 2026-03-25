@@ -1,10 +1,13 @@
-﻿using CoreEdificio.Application.Common;
+using CoreEdificio.Application.Common;
 using CoreEdificio.Application.Contracts.Payments;
 using CoreEdificio.Application.Interfaces.Payments;
 using CoreEdificio.Domain.Entities.Payments;
 
 namespace CoreEdificio.Application.Services;
 
+/// <summary>
+/// Servicio responsable del procesamiento de abonos y emisión de deudas (Arrears) para los Residentes.
+/// </summary>
 public class PaymentsService
 {
     private readonly IPaymentRepository _payments;
@@ -16,24 +19,27 @@ public class PaymentsService
         _billing = billing;
     }
 
+    /// <summary>
+    /// Registra el abono (transferencia, depósito, etc.) comprobando que no supere el saldo pendiente.
+    /// </summary>
     public async Task<PaymentDto> RegisterAsync(Guid communityId, RegisterPaymentCommand cmd, CancellationToken ct = default)
     {
         var period = NormalizePeriod(cmd.Period);
 
-        if (cmd.UnitId == Guid.Empty) throw new ValidationException("UnitId is required.");
-        if (cmd.Amount <= 0) throw new ValidationException("Amount must be > 0.");
+        if (cmd.UnitId == Guid.Empty) throw new ValidationException("El UnitId es obligatorio.");
+        if (cmd.Amount <= 0) throw new ValidationException("El monto debe ser numérico mayor a cero.");
 
         var issued = await _billing.IsPeriodIssuedAsync(communityId, period, ct);
-        if (!issued) throw new ConflictException("Period is not issued. You can't register payments.");
+        if (!issued) throw new ConflictException("El periodo aún no ha sido emitido. No puede registrar pagos anticipados.");
 
         var chargeAmount = await _billing.GetUnitChargeAmountAsync(communityId, cmd.UnitId, period, ct);
-        if (chargeAmount is null) throw new NotFoundException("Unit charge not found for this period.");
+        if (chargeAmount is null) throw new NotFoundException("No se encontró ningún cargo en el periodo para esta unidad.");
 
         var paidTotal = await _payments.GetPaidTotalAsync(communityId, cmd.UnitId, period, ct);
         var outstanding = decimal.Round(chargeAmount.Value - paidTotal, 2, MidpointRounding.AwayFromZero);
 
         var amount = decimal.Round(cmd.Amount, 2, MidpointRounding.AwayFromZero);
-        if (amount > outstanding) throw new ConflictException($"Overpayment not allowed. Outstanding: {outstanding:0.00}");
+        if (amount > outstanding) throw new ConflictException($"No se permite el sobrepago. Deuda actual: {outstanding:0.00}");
 
         var payment = new Payment
         {
@@ -61,15 +67,18 @@ public class PaymentsService
         );
     }
 
+    /// <summary>
+    /// Consulta el saldo general para una sola Unidad. Identificando si está 'Pagado', 'Deuda' o 'Pago Parcial'.
+    /// </summary>
     public async Task<UnitBalanceDto> GetBalanceAsync(Guid communityId, Guid unitId, string period, CancellationToken ct = default)
     {
         period = NormalizePeriod(period);
 
         var issued = await _billing.IsPeriodIssuedAsync(communityId, period, ct);
-        if (!issued) throw new ConflictException("Period is not issued.");
+        if (!issued) throw new ConflictException("El periodo no se encuentra emitido para consultar su balance.");
 
         var chargeAmount = await _billing.GetUnitChargeAmountAsync(communityId, unitId, period, ct);
-        if (chargeAmount is null) throw new NotFoundException("Unit charge not found for this period.");
+        if (chargeAmount is null) throw new NotFoundException("No hay cargo asignado para esta unidad.");
 
         var paidTotal = await _payments.GetPaidTotalAsync(communityId, unitId, period, ct);
 
@@ -91,6 +100,9 @@ public class PaymentsService
         );
     }
 
+    /// <summary>
+    /// Lista la traza de auditoría de los últimos pagos realizados aplicando filtros opcionales de unidad o periodo.
+    /// </summary>
     public async Task<List<PaymentDto>> ListAsync(Guid communityId, Guid? unitId, string? period, CancellationToken ct = default)
     {
         if (!string.IsNullOrWhiteSpace(period))
@@ -112,18 +124,22 @@ public class PaymentsService
 
     private static string NormalizePeriod(string period)
     {
-        if (string.IsNullOrWhiteSpace(period)) throw new ValidationException("Period is required (YYYY-MM).");
+        if (string.IsNullOrWhiteSpace(period)) throw new ValidationException("El periodo es obligatorio (YYYY-MM).");
         period = period.Trim();
-        if (period.Length != 7 || period[4] != '-') throw new ValidationException("Period must be in format YYYY-MM.");
+        if (period.Length != 7 || period[4] != '-') throw new ValidationException("El periodo debe mantener el formato de año y mes: YYYY-MM.");
         return period;
     }
 
+    /// <summary>
+    /// Genera la lista de unidades en estado de morosidad o pago parcial (Arrears) para un periodo.
+    /// Útil para vistas del comité o administrador en el panel resumen.
+    /// </summary>
     public async Task<List<ArrearsUnitDto>> GetArrearsAsync(Guid communityId, string period, CancellationToken ct = default)
     {
         period = NormalizePeriod(period);
 
         var issued = await _billing.IsPeriodIssuedAsync(communityId, period, ct);
-        if (!issued) throw new ConflictException("Period is not issued.");
+        if (!issued) throw new ConflictException("El periodo no se encuentra emitido para buscar morosos.");
 
         var charges = await _billing.ListUnitChargesAsync(communityId, period, ct);
         if (charges.Count == 0) return [];
@@ -157,5 +173,4 @@ public class PaymentsService
 
         return result;
     }
-
 }

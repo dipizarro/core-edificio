@@ -70,7 +70,7 @@ public class BulkOperationsTests
         
         var duplicate = result.Results.First(x => x.Index == 1);
         Assert.False(duplicate.Success);
-        Assert.Contains("Duplicate in request", duplicate.Error);
+        Assert.Contains("Comando duplicado en la misma petición", duplicate.Error);
 
         var last = result.Results.First(x => x.Index == 2);
         Assert.True(last.Success);
@@ -98,6 +98,6 @@ public class BulkOperationsTests
 
         var invalid = result.Results.First(x => x.Index == 1);
         Assert.False(invalid.Success);
-        Assert.Contains("Amount must be > 0", invalid.Error);
+        Assert.Contains("El monto debe ser numérico mayor a 0", invalid.Error);
     }
 }

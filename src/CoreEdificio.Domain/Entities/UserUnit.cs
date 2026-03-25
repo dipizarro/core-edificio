@@ -1,29 +1,35 @@
-
 namespace CoreEdificio.Domain.Entities;
 
+/// <summary>
+/// Entidad de unión que representa la relación entre un Usuario (definido en infraestructura) y una Unidad.
+/// </summary>
 public class UserUnit
 {
+    /// <summary>
+    /// Identificador del usuario (ApplicationUser).
+    /// </summary>
     public Guid UserId { get; set; }
-    // Navigation property back to ApplicationUser is in Infrastructure, so we can't define it here type-safely 
-    // unless we introduce an interface or similar pattern. 
-    // However, EF Core allows defining navigation without the type if configured strictly, 
-    // OR normally we put logic in Infrastructure.
-    // BUT, the requirement is to have navigation in Unit -> UserUnit.
-    // So UserUnit MUST be in Domain.
-    // ApplicationUser is in Infrastructure.
-    // Domain cannot reference Infrastructure.
-    // So UserUnit cannot have "public ApplicationUser User { get; set; }"
-    // WE WILL OMIT the User navigation property here for now, or use Object/dynamic (bad).
-    // Better strategy: Only Unit->UserUnit navigation is strongly typed. 
-    // User->UserUnit is strongly typed in ApplicationUser (Infra).
-    // Relation config in DbContext will handle binding.
+    
+    /* 
+     * Nota Arquitectónica: 
+     * La propiedad de navegación hacia ApplicationUser se omite aquí para no romper Clean Architecture, 
+     * ya que ApplicationUser reside en la capa Infrastructure y Domain no debe conocerla.
+     * La relación se mapea vía EF Core fluent API en el DbContext.
+     */
     
     public Guid UnitId { get; set; }
     public Unit Unit { get; set; } = null!;
 
     public Guid CommunityId { get; set; }
 
-    public string RelationshipType { get; set; } = "Resident"; // Owner, Tenant, Resident
+    /// <summary>
+    /// Tipo de relación con la unidad (Owner, Tenant, Resident).
+    /// </summary>
+    public string RelationshipType { get; set; } = "Resident";
+    
+    /// <summary>
+    /// Indica si es la unidad principal para el usuario en la comunidad.
+    /// </summary>
     public bool IsPrimary { get; set; }
 
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;

@@ -1,52 +1,70 @@
-﻿using CoreEdificio.Infrastructure.Persistence;
+using CoreEdificio.Domain.Entities;
+using CoreEdificio.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace CoreEdificio.Infrastructure.Identity;
 
+/// <summary>
+/// Clase responsable de poblar la base de datos con roles y usuarios por defecto.
+/// Utilizado principalmente en entornos de desarrollo.
+/// </summary>
 public static class IdentitySeeder
 {
+    /// <summary>
+    /// Ejecuta el proceso de siembra (seeding) de la identidad del sistema.
+    /// Crea roles predeterminados y usuarios administrativos si es que el ambiente tiene una comunidad creada.
+    /// </summary>
     public static async Task SeedAsync(
         UserManager<ApplicationUser> users,
         RoleManager<IdentityRole<Guid>> roles,
-        AppDbContext db)
+        AppDbContext db,
+        ILogger? logger = null)
     {
-        // 1. Roles
-        string[] roleNames = { AppRoles.Admin, AppRoles.Committee, AppRoles.Resident };
+        // 1. Crear Roles del sistema
+        string[] roleNames = [ AppRoles.Admin, AppRoles.Committee, AppRoles.Resident ];
 
         foreach (var role in roleNames)
         {
             if (!await roles.RoleExistsAsync(role))
+            {
                 await roles.CreateAsync(new IdentityRole<Guid>(role));
+            }
         }
 
-        // 2. Community + Unit base
+        // 2. Obtener comunidad y unidad base para la asociación de usuarios
         var community = await db.Communities.FirstOrDefaultAsync();
-        if (community == null) return;
+        if (community == null)
+        {
+            logger?.LogWarning("IdentitySeeder: No se encontró una Comunidad base. Se aborta la creación de usuarios predeterminados.");
+            return;
+        }
 
+        // 3. Generar Instalaciones (Facilities) de prueba
         if (!await db.Facilities.AnyAsync(f => f.CommunityId == community.Id))
         {
             db.Facilities.AddRange(
-                new CoreEdificio.Domain.Entities.Facility
+                new Facility
                 {
                     CommunityId = community.Id,
                     Name = "Quincho",
                     Description = "Espacio para asados y reuniones.",
                     IsActive = true,
-                    ChargingMode = CoreEdificio.Domain.Entities.FacilityChargingMode.PaidAndDeposit,
+                    ChargingMode = FacilityChargingMode.PaidAndDeposit,
                     RentAmountClp = 30000,
                     DepositAmountClp = 50000,
                     RequiresApproval = true,
                     SlotDurationMinutes = 60,
                     CreatedAtUtc = DateTime.UtcNow
                 },
-                new CoreEdificio.Domain.Entities.Facility
+                new Facility
                 {
                     CommunityId = community.Id,
                     Name = "Sala Reuniones",
                     Description = "Espacio multiuso para reuniones.",
                     IsActive = true,
-                    ChargingMode = CoreEdificio.Domain.Entities.FacilityChargingMode.Free,
+                    ChargingMode = FacilityChargingMode.Free,
                     RentAmountClp = 0,
                     DepositAmountClp = 0,
                     RequiresApproval = false,
@@ -58,40 +76,22 @@ public static class IdentitySeeder
         }
 
         var unit = await db.Units.FirstOrDefaultAsync();
-        if (unit == null) return;
+        if (unit == null)
+        {
+            logger?.LogWarning("IdentitySeeder: No se encontró una Unidad base. Se aborta la creación de usuarios predeterminados.");
+            return;
+        }
 
-        await CreateUserIfNotExists(
-            users,
-            db,
-            email: "admin@coreedificio.local",
-            password: "Admin123!",
-            role: AppRoles.Admin,
-            community.Id,
-            unit.Id
-        );
-
-        await CreateUserIfNotExists(
-            users,
-            db,
-            email: "committee@coreedificio.local",
-            password: "Committee123!",
-            role: AppRoles.Committee,
-            community.Id,
-            unit.Id
-        );
-
-        await CreateUserIfNotExists(
-            users,
-            db,
-            email: "resident@coreedificio.local",
-            password: "Resident123!",
-            role: AppRoles.Resident,
-            community.Id,
-            unit.Id
-        );
+        // TODO: En ambientes productivos, estas contraseñas deben extraerse del IConfiguration de secretos
+        await CreateUserIfNotExistsAsync(users, db, "admin@coreedificio.local", "Admin123!", AppRoles.Admin, community.Id, unit.Id);
+        await CreateUserIfNotExistsAsync(users, db, "committee@coreedificio.local", "Committee123!", AppRoles.Committee, community.Id, unit.Id);
+        await CreateUserIfNotExistsAsync(users, db, "resident@coreedificio.local", "Resident123!", AppRoles.Resident, community.Id, unit.Id);
     }
 
-    private static async Task CreateUserIfNotExists(
+    /// <summary>
+    /// Crea un usuario si no existe, lo asigna a un rol y crea su relación (UserUnit) en la comunidad.
+    /// </summary>
+    private static async Task CreateUserIfNotExistsAsync(
         UserManager<ApplicationUser> users,
         AppDbContext db,
         string email,
@@ -108,8 +108,8 @@ public static class IdentitySeeder
             Id = Guid.NewGuid(),
             Email = email,
             UserName = email,
-            CommunityId = communityId, // Mantener para backfill/compatibilidad
-            UnitId = unitId,           // Mantener para backfill/compatibilidad
+            CommunityId = communityId, // Mantenido para rest-compatibility
+            UnitId = unitId,           // Mantenido para rest-compatibility
             EmailConfirmed = true
         };
 
@@ -118,8 +118,7 @@ public static class IdentitySeeder
 
         await users.AddToRoleAsync(user, role);
 
-        // Crear asociación UserUnit
-        var userUnit = new CoreEdificio.Domain.Entities.UserUnit
+        var userUnit = new UserUnit
         {
             UserId = user.Id,
             UnitId = unitId,

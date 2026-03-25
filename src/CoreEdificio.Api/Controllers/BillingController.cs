@@ -1,4 +1,4 @@
-﻿using CoreEdificio.Api.Auth;
+using CoreEdificio.Api.Auth;
 using CoreEdificio.Application.Contracts.Billing;
 using CoreEdificio.Application.Contracts.Billing.Bulk;
 using CoreEdificio.Application.Services;
@@ -25,8 +25,9 @@ public class BillingController : ControllerBase
         _pdfGenerator = pdfGenerator;
     }
 
-
-    // Crear gasto
+    /// <summary>
+    /// Registra un nuevo gasto común individual para un periodo específico.
+    /// </summary>
     [HttpPost("expenses")]
     public async Task<IActionResult> CreateExpense(Guid communityId, CreateExpenseCommand cmd, CancellationToken ct)
     {
@@ -34,6 +35,9 @@ public class BillingController : ControllerBase
         return Created($"/api/communities/{communityId}/billing/expenses/{created.Id}", created);
     }
 
+    /// <summary>
+    /// Registra múltiples gastos comunes de forma masiva (Bulk) para facilitar la digitación.
+    /// </summary>
     [HttpPost("expenses/bulk")]
     public async Task<IActionResult> CreateExpensesBulk(Guid communityId, CreateExpensesBulkCommand cmd, CancellationToken ct)
     {
@@ -41,7 +45,9 @@ public class BillingController : ControllerBase
         return Ok(response);
     }
 
-    // Emitir período
+    /// <summary>
+    /// Emite oficialmente un periodo contable, realizando el prorrateo automático y bloqueando modificaciones futuras.
+    /// </summary>
     [HttpPost("{period}/issue")]
     public async Task<IActionResult> Issue(Guid communityId, string period, CancellationToken ct)
     {
@@ -49,7 +55,9 @@ public class BillingController : ControllerBase
         return Ok(summary);
     }
 
-    // Obtener resumen (desde DB)
+    /// <summary>
+    /// Obtiene el resumen de facturación y prorrateo de un periodo específico.
+    /// </summary>
     [HttpGet("{period}")]
     public async Task<IActionResult> GetSummary(Guid communityId, string period, CancellationToken ct)
     {
@@ -57,7 +65,9 @@ public class BillingController : ControllerBase
         return Ok(summary);
     }
 
-    // GET /api/communities/{communityId}/billing/{period}/arrears
+    /// <summary>
+    /// Obtiene el listado de unidades con pagos incompletos o en morosidad (Arrears) para el periodo.
+    /// </summary>
     [HttpGet("{period}/arrears")]
     public async Task<IActionResult> GetArrears(Guid communityId, string period, CancellationToken ct)
     {
@@ -66,7 +76,7 @@ public class BillingController : ControllerBase
     }
 
     /// <summary>
-    /// Consulta estado de cuenta de una unidad (Admin/Committee)
+    /// Consulta el estado de cuenta y cobros detallados de una unidad en particular (Vista de Administración).
     /// </summary>
     [HttpGet("units/{unitId:guid}/statement/{period}")]
     public async Task<IActionResult> GetStatement(Guid communityId, Guid unitId, string period, CancellationToken ct)
@@ -76,18 +86,16 @@ public class BillingController : ControllerBase
     }
 
     /// <summary>
-    /// Consulta MI estado de cuenta (Resident)
+    /// Consulta el estado de cuenta propio del Residente autenticado.
     /// </summary>
     [HttpGet("my-statement/{period}")]
     [Authorize(Roles = "Resident")] 
-    // AuthPolicies.CommunityScope ya está a nivel de controlador, pero necesitamos UnitId del claim
     public async Task<IActionResult> GetMyStatement(Guid communityId, string period, CancellationToken ct)
     {
-        // Obtener UnitId de los claims
         var unitIdClaim = User.FindFirst("UnitId")?.Value;
         if (string.IsNullOrEmpty(unitIdClaim) || !Guid.TryParse(unitIdClaim, out var unitId))
         {
-             return Forbid(); // O 400 Bad Request si preferimos
+             return Forbid();
         }
 
         var statement = await _billing.GetUnitStatementAsync(communityId, unitId, period, ct);
@@ -95,7 +103,7 @@ public class BillingController : ControllerBase
     }
 
     /// <summary>
-    /// Descarga estado de cuenta de una unidad en PDF (Admin/Committee)
+    /// Descarga el documento PDF del estado de cuenta de una unidad específica.
     /// </summary>
     [HttpGet("units/{unitId:guid}/statement/{period}/pdf")]
     public async Task<IActionResult> GetStatementPdf(Guid communityId, Guid unitId, string period, CancellationToken ct)
@@ -107,7 +115,7 @@ public class BillingController : ControllerBase
     }
 
     /// <summary>
-    /// Descarga MI estado de cuenta en PDF (Resident)
+    /// Descarga el documento PDF del estado de cuenta del Residente autenticado.
     /// </summary>
     [HttpGet("my-statement/{period}/pdf")]
     [Authorize(Roles = "Resident")]

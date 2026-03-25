@@ -22,6 +22,9 @@ public class BookingsController : ControllerBase
         _db = db;
     }
 
+    /// <summary>
+    /// Crea una solicitud de reserva para una instalación, validando solapamientos y normativas vigentes.
+    /// </summary>
     [HttpPost("api/communities/{communityId:guid}/facilities/{facilityId:guid}/bookings")]
     [Authorize(Roles = "Committee,Admin,Resident")]
     [Authorize(Policy = AuthPolicies.CommunityScope)]
@@ -56,6 +59,9 @@ public class BookingsController : ControllerBase
         return Created($"/api/bookings/{booking.Id}", ToDto(booking));
     }
 
+    /// <summary>
+    /// Consulta el detalle extendido de una reserva específica.
+    /// </summary>
     [HttpGet("api/bookings/{bookingId}")]
     [Authorize(Roles = "Committee,Admin,Resident")]
     public async Task<IActionResult> GetById(Guid bookingId, CancellationToken ct)
@@ -65,7 +71,6 @@ public class BookingsController : ControllerBase
 
         var userId = UserContext.GetUserId(User);
 
-        // Security check
         if (User.IsInRole("Resident"))
         {
             var unitId = UserContext.GetUnitId(User);
@@ -98,7 +103,7 @@ public class BookingsController : ControllerBase
                 c.Description,
                 (int)c.Amount,
                 c.Period,
-                false // IsPaid logic not implemented in Charge entity yet, assumed false or requires join with payments
+                false
             ))
             .ToListAsync(ct);
 
@@ -112,8 +117,7 @@ public class BookingsController : ControllerBase
             booking.StartAtUtc,
             booking.EndAtUtc,
             booking.Status.ToString(),
-            false, // We need to check facility for RequiresApproval if needed, but Booking doesn't store it. We can fetch it.
-                   // Actually, Request says "bool RequiresApproval". I should fetch facility.
+            false,
             booking.Notes,
             booking.CreatedAtUtc,
             booking.ApprovedAtUtc,
@@ -124,13 +128,15 @@ public class BookingsController : ControllerBase
             charges
         );
         
-        // Fetch facility RequiresApproval to fill the DTO correctly
         var facilityReq = await _db.Facilities.Where(f => f.Id == booking.FacilityId).Select(f => f.RequiresApproval).FirstOrDefaultAsync(ct);
         detail = detail with { RequiresApproval = facilityReq };
 
         return Ok(detail);
     }
 
+    /// <summary>
+    /// Lista el historial de reservas para una instalación particular.
+    /// </summary>
     [HttpGet("api/communities/{communityId:guid}/facilities/{facilityId:guid}/bookings")]
     [Authorize(Roles = "Committee,Admin,Resident")]
     [Authorize(Policy = AuthPolicies.CommunityScope)]
@@ -160,6 +166,9 @@ public class BookingsController : ControllerBase
         return Ok(bookings);
     }
 
+    /// <summary>
+    /// Lista de manera global las reservas efectuadas a lo largo de toda una comunidad. (Vista Administrador)
+    /// </summary>
     [HttpGet("api/communities/{communityId:guid}/bookings")]
     [Authorize(Roles = "Committee,Admin")]
     [Authorize(Policy = AuthPolicies.CommunityScope)]
@@ -207,6 +216,9 @@ public class BookingsController : ControllerBase
         return Ok(items);
     }
 
+    /// <summary>
+    /// Lista el historial de reservas efectuadas por el usuario autenticado (Mis Reservas).
+    /// </summary>
     [HttpGet("api/bookings/my")]
     [Authorize(Roles = "Committee,Admin,Resident")]
     [ProducesResponseType(typeof(List<BookingListDto>), 200)]
@@ -217,7 +229,6 @@ public class BookingsController : ControllerBase
         [FromQuery] string? status,
         CancellationToken ct)
     {
-        // Base query with joins
         var query = from b in _db.Bookings.AsNoTracking()
                     join f in _db.Facilities on b.FacilityId equals f.Id
                     join u in _db.Units on b.UnitId equals u.Id
@@ -264,6 +275,9 @@ public class BookingsController : ControllerBase
         return Ok(items);
     }
 
+    /// <summary>
+    /// Aprueba manualmente (Comité/Administración) una reserva pendiente.
+    /// </summary>
     [HttpPost("api/communities/{communityId:guid}/facilities/{facilityId:guid}/bookings/{bookingId:guid}/approve")]
     [Authorize(Roles = "Committee,Admin")]
     [Authorize(Policy = AuthPolicies.CommunityScope)]
@@ -274,6 +288,9 @@ public class BookingsController : ControllerBase
         return NoContent();
     }
 
+    /// <summary>
+    /// Rechaza una reserva pendiente asignando un motivo explícito a la acción.
+    /// </summary>
     [HttpPost("api/communities/{communityId:guid}/facilities/{facilityId:guid}/bookings/{bookingId:guid}/reject")]
     [Authorize(Roles = "Committee,Admin")]
     [Authorize(Policy = AuthPolicies.CommunityScope)]
@@ -284,14 +301,15 @@ public class BookingsController : ControllerBase
         return NoContent();
     }
 
+    /// <summary>
+    /// Cancela una reserva validada calculando y operando penalidades por retrasos de cancelación temprana.
+    /// </summary>
     [HttpPost("api/bookings/{bookingId:guid}/cancel")]
     [Authorize(Roles = "Committee,Admin,Resident")]
     public async Task<IActionResult> Cancel(Guid bookingId, CancelBookingRequest request, CancellationToken ct)
     {
         var userId = UserContext.GetUserId(User);
         
-        // El service validará si es dueño o admin? 
-        // No, el controller debe validar si es Resident que sea su unidad.
         if (User.IsInRole("Resident"))
         {
             var unitId = UserContext.GetUnitId(User);
@@ -303,21 +321,21 @@ public class BookingsController : ControllerBase
         }
         else
         {
-            // Admin/Committee pueden cancelar si es de su comunidad (a traves de scopes si estuviera el commId en la ruta)
-            // Pero aqui la ruta no tiene communityId.
-            // Podríamos requerir communityId o sacarlo de los claims si es Committee.
-            // Por simplicidad, el service procesará. Pero idealmente validamos pertenencia.
             var booking = await _db.Bookings.AsNoTracking().FirstOrDefaultAsync(x => x.Id == bookingId, ct);
             if (booking is null) return NotFound();
             
-            // Validar community scope si no es Admin global (si tal cosa existe)
-            // Por ahora, confiamos en el service o agregamos validación.
+            var scopedCommunityId = UserContext.GetCommunityId(User);
+            if (scopedCommunityId.HasValue && booking.CommunityId != scopedCommunityId.Value)
+                return Forbid();
         }
 
         await _service.CancelBookingAsync(bookingId, userId, request.Reason, ct);
         return NoContent();
     }
 
+    /// <summary>
+    /// Marca el evento como No Acudido (No-Show). Gatilla castigos si están configurados en la instalación.
+    /// </summary>
     [HttpPost("api/communities/{communityId:guid}/facilities/{facilityId:guid}/bookings/{bookingId:guid}/no-show")]
     [Authorize(Roles = "Committee,Admin")]
     [Authorize(Policy = AuthPolicies.CommunityScope)]
@@ -327,25 +345,19 @@ public class BookingsController : ControllerBase
         return NoContent();
     }
 
+    /// <summary>
+    /// Cierra el ciclo de una reserva y la declara Completada satisfactoriamente tras el uso.
+    /// </summary>
     [HttpPost("api/bookings/{bookingId:guid}/complete")]
     [Authorize(Roles = "Committee,Admin")]
     public async Task<IActionResult> Complete(Guid bookingId, CancellationToken ct)
     {
-        // Fetch booking to check community/facility
         var booking = await _db.Bookings.AsNoTracking().FirstOrDefaultAsync(x => x.Id == bookingId, ct);
         if (booking is null) return NotFound();
 
-        // Check scope logic
         var scopedCommunityId = UserContext.GetCommunityId(User);
         if (scopedCommunityId.HasValue && booking.CommunityId != scopedCommunityId.Value)
             return Forbid();
-        
-        // Also if we want to support Resident completing their own booking?
-        // User request: "(opcional) Resident solo si ahora > EndAtUtc y es su booking"
-        // I won't implement the optional Resident logic unless requested explicitly or it's easy.
-        // I'll stick to Committee/Admin for now as per "Authorize: Committee/Admin" primary line.
-        // Wait, "5) Endpoint: Mark completed ... Authorize: Committee/Admin ... (opcional) Resident ...".
-        // Use logic from request.
         
         if (User.IsInRole("Resident"))
         {
@@ -354,11 +366,9 @@ public class BookingsController : ControllerBase
              
              if (booking.UnitId != unitId.Value) return Forbid();
 
-             // Check time
              if (DateTime.UtcNow <= booking.EndAtUtc)
                 throw new ValidationException("Cannot complete booking before it ends.");
         }
-        // Admin authorization logic handles via roles/scopes above.
 
         await _service.CompleteBookingAsync(booking.CommunityId, booking.FacilityId, bookingId, UserContext.GetUserId(User), ct);
         return NoContent();

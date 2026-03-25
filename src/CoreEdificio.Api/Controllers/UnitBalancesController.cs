@@ -1,4 +1,4 @@
-﻿using CoreEdificio.Api.Auth;
+using CoreEdificio.Api.Auth;
 using CoreEdificio.Application.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -15,7 +15,9 @@ public class UnitBalancesController : ControllerBase
 
     public UnitBalancesController(PaymentsService payments) => _payments = payments;
 
-    // GET /api/communities/{communityId}/units/{unitId}/balance/{period}
+    /// <summary>
+    /// Consulta el saldo actual en deuda, saldo a favor y total pagado por una Unidad al cierre de un periodo.
+    /// </summary>
     [HttpGet("{period}")]
     public async Task<IActionResult> Get(Guid communityId, Guid unitId, string period, CancellationToken ct)
     {

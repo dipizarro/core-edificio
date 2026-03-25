@@ -1,4 +1,4 @@
-﻿using CoreEdificio.Api.Auth;
+using CoreEdificio.Api.Auth;
 using CoreEdificio.Application.Contracts.Payments;
 using CoreEdificio.Application.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -16,21 +16,20 @@ public class PaymentsController : ControllerBase
 
     public PaymentsController(PaymentsService payments) => _payments = payments;
 
-    // Registrar pago
-    // POST /api/communities/{communityId}/payments
+    /// <summary>
+    /// Registra un nuevo abono/pago realizado por una unidad hacia los Gastos Comunes.
+    /// Emplea ejecución transaccional para calcular la disminución en la deuda global.
+    /// </summary>
     [HttpPost]
     public async Task<IActionResult> Register(Guid communityId, RegisterPaymentCommand cmd, CancellationToken ct)
     {
         var created = await _payments.RegisterAsync(communityId, cmd, ct);
-
-        return Created(
-            $"/api/communities/{communityId}/payments/{created.Id}",
-            created
-        );
+        return Created($"/api/communities/{communityId}/payments/{created.Id}", created);
     }
 
-    // Listar pagos
-    // GET /api/communities/{communityId}/payments?unitId=...&period=YYYY-MM
+    /// <summary>
+    /// Lista el historial de transacciones y pagos, permitiendo filtrar opcionalmente por Unidad y Periodo.
+    /// </summary>
     [HttpGet]
     public async Task<IActionResult> List(Guid communityId, [FromQuery] Guid? unitId, [FromQuery] string? period, CancellationToken ct)
     {

@@ -1,4 +1,4 @@
-﻿using CoreEdificio.Api.Auth;
+using CoreEdificio.Api.Auth;
 using CoreEdificio.Application.Contracts;
 using CoreEdificio.Application.Contracts.Bulk;
 using CoreEdificio.Application.Services;
@@ -13,8 +13,12 @@ namespace CoreEdificio.Api.Controllers;
 public class UnitsController : ControllerBase
 {
     private readonly UnitService _service;
+
     public UnitsController(UnitService service) => _service = service;
 
+    /// <summary>
+    /// Crea una unidad individual vinculada a su coeficiente de prorrateo primario.
+    /// </summary>
     [HttpPost("api/communities/{communityId:guid}/units")]
     public async Task<IActionResult> Create(Guid communityId, CreateUnitCommand cmd, CancellationToken ct)
     {
@@ -22,6 +26,9 @@ public class UnitsController : ControllerBase
         return Created($"/api/units/{created.Id}", created);
     }
 
+    /// <summary>
+    /// Importa masivamente unidades (sólo unidades base, sin dependencias anexas) hacia la comunidad.
+    /// </summary>
     [HttpPost("api/communities/{communityId:guid}/units/bulk")]
     public async Task<IActionResult> CreateBulk(Guid communityId, CreateUnitsBulkCommand cmd, CancellationToken ct)
     {
@@ -29,6 +36,10 @@ public class UnitsController : ControllerBase
         return Ok(response);
     }
 
+    /// <summary>
+    /// Importa masivamente unidades complejas con sus respectivos componentes (estacionamientos, bodegas, etc.).
+    /// Realiza validación profunda para evitar colisiones de asignación de dependencias.
+    /// </summary>
     [HttpPost("api/communities/{communityId:guid}/units/bulk-with-components")]
     public async Task<IActionResult> CreateBulkWithComponents(
         Guid communityId, 
@@ -47,10 +58,16 @@ public class UnitsController : ControllerBase
         return Ok(response);
     }
 
+    /// <summary>
+    /// Lista el padrón completo de unidades pertenecientes a la comunidad analizada.
+    /// </summary>
     [HttpGet("api/communities/{communityId:guid}/units")]
     public async Task<IActionResult> ListByCommunity(Guid communityId, CancellationToken ct)
         => Ok(await _service.ListByCommunityAsync(communityId, ct));
 
+    /// <summary>
+    /// Genera un resumen estadístico de la validación del coeficiente total (100%) y cantidad de unidades inscritas.
+    /// </summary>
     [HttpGet("api/communities/{communityId:guid}/units/coefficients-summary")]
     public async Task<IActionResult> CoeffSummary(Guid communityId, CancellationToken ct)
     {

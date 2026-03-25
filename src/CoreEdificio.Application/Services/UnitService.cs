@@ -1,4 +1,4 @@
-﻿using CoreEdificio.Application.Common;
+using CoreEdificio.Application.Common;
 using CoreEdificio.Application.Contracts;
 using CoreEdificio.Application.Contracts.Bulk;
 using CoreEdificio.Application.Interfaces;
@@ -7,27 +7,35 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CoreEdificio.Application.Services;
 
+/// <summary>
+/// Servicio de aplicación encargado de la gestión integral de Unidades (Departamentos, Estacionamientos, etc.)
+/// y su carga masiva dentro de una comunidad.
+/// </summary>
 public class UnitService
 {
     private readonly IUnitRepository _repo;
 
     public UnitService(IUnitRepository repo) => _repo = repo;
 
+    /// <summary>
+    /// Crea una nueva unidad de forma individual, validando que el número no esté duplicado.
+    /// Crea automáticamente un componente por defecto ("Department") para representar la unidad base.
+    /// </summary>
     public async Task<Unit> CreateAsync(Guid communityId, CreateUnitCommand cmd, CancellationToken ct = default)
     {
         if (!await _repo.CommunityExistsAsync(communityId, ct))
-            throw new NotFoundException("Community not found.");
+            throw new NotFoundException("Comunidad no encontrada.");
 
         if (string.IsNullOrWhiteSpace(cmd.UnitNumber))
-            throw new ValidationException("Unit number is required.");
+            throw new ValidationException("El número de unidad es requerido.");
 
         if (cmd.CoefficientPct <= 0 || cmd.CoefficientPct > 100)
-            throw new ValidationException("CoefficientPct must be > 0 and <= 100.");
+            throw new ValidationException("El porcentaje de coeficiente debe ser > 0 y <= 100.");
 
         var number = cmd.UnitNumber.Trim();
 
         if (await _repo.UnitNumberExistsAsync(communityId, number, ct))
-            throw new ConflictException("Unit number already exists in this community.");
+            throw new ConflictException("El número de unidad ya existe en esta comunidad.");
 
         var unit = new Unit
         {
@@ -52,16 +60,26 @@ public class UnitService
         return unit;
     }
 
+    /// <summary>
+    /// Lista todas las unidades pertenecientes a una comunidad.
+    /// </summary>
     public Task<List<Unit>> ListByCommunityAsync(Guid communityId, CancellationToken ct = default)
         => _repo.ListByCommunityAsync(communityId, ct);
 
+    /// <summary>
+    /// Obtiene un resumen con la cantidad total de unidades y la suma de sus coeficientes (prorrateo).
+    /// </summary>
     public Task<(int Count, decimal TotalCoefficientPct)> GetCoefficientSummaryAsync(Guid communityId, CancellationToken ct = default)
         => _repo.GetCoefficientSummaryAsync(communityId, ct);
 
+    /// <summary>
+    /// Procesa la creación masiva de unidades simples (sin detalle de componentes adicionales).
+    /// Filtra duplicados y valida datos antes de persistir en masa.
+    /// </summary>
     public async Task<BulkResponse<UnitResponseDto>> CreateBulkAsync(Guid communityId, CreateUnitsBulkCommand bulk, CancellationToken ct = default)
     {
         if (!await _repo.CommunityExistsAsync(communityId, ct))
-            throw new NotFoundException("Community not found.");
+            throw new NotFoundException("Comunidad no encontrada.");
 
         var results = new List<BulkItemResult<UnitResponseDto>>();
         var unitsToCreate = new List<Unit>();
@@ -84,24 +102,27 @@ public class UnitService
             IsValid = !string.IsNullOrWhiteSpace(cmd.UnitNumber) && cmd.CoefficientPct > 0
         }).ToList();
 
+        // Lógica Compleja: Iteramos sobre los elementos, validando individualmente si ya existen
+        // en la base de datos o si vienen duplicados en la misma petición (seenNumbers).
+        // Solo las unidades válidas se preparan para ser insertadas.
         foreach (var item in normalizedItems)
         {
             if (!item.IsValid)
             {
-                results.Add(new BulkItemResult<UnitResponseDto>(item.Index, false, "Invalid data (Number required, Coefficient > 0)", null));
+                results.Add(new BulkItemResult<UnitResponseDto>(item.Index, false, "Datos inválidos (Se requiere Número y Coeficiente > 0)", null));
                 continue;
             }
 
             if (seenNumbers.Contains(item.Number))
             {
-                results.Add(new BulkItemResult<UnitResponseDto>(item.Index, false, "Duplicate in request", null));
+                results.Add(new BulkItemResult<UnitResponseDto>(item.Index, false, "Comando duplicado en la misma petición", null));
                 continue;
             }
             seenNumbers.Add(item.Number);
 
             if (existingNumbers.Contains(item.Number))
             {
-                results.Add(new BulkItemResult<UnitResponseDto>(item.Index, false, "Unit number already exists", null));
+                results.Add(new BulkItemResult<UnitResponseDto>(item.Index, false, "El número de unidad ya existe", null));
                 continue;
             }
 
@@ -115,7 +136,7 @@ public class UnitService
                 OwnerEmail = string.IsNullOrWhiteSpace(item.Cmd.OwnerEmail) ? null : item.Cmd.OwnerEmail.Trim()
             };
 
-            // Componente por defecto
+            // Componente base por defecto
             unit.Components.Add(new UnitComponent
             {
                 CommunityId = communityId,
@@ -140,10 +161,14 @@ public class UnitService
         return new BulkResponse<UnitResponseDto>(communityId, bulk.Units.Count, createdCount, failedCount, results);
     }
 
+    /// <summary>
+    /// Crea en masa múltiples unidades junto con sus componentes detallados (bodegas, estacionamientos).
+    /// Asegura que no existan colisiones de componentes (códigos repetidos) en toda la comunidad.
+    /// </summary>
     public async Task<BulkResponse<UnitResponseDto>> CreateBulkWithComponentsAsync(Guid communityId, CreateUnitsWithComponentsBulkCommand bulk, CancellationToken ct = default)
     {
         if (!await _repo.CommunityExistsAsync(communityId, ct))
-            throw new NotFoundException("Community not found.");
+            throw new NotFoundException("Comunidad no encontrada.");
 
         var results = new List<BulkItemResult<UnitResponseDto>>();
         var unitsToCreate = new List<Unit>();
@@ -153,13 +178,18 @@ public class UnitService
             return new BulkResponse<UnitResponseDto>(communityId, 0, 0, 0, results);
         }
 
+        // Lógica Compleja: Detección global de duplicados
+        // Prevenimos la colisión buscando tanto en los identificadores principales (UnitNumber)
+        // como en la combinación de componentes (Type + Code). Se extraen las peticiones y se verifican
+        // en bloque contra la base de datos para minimizar los queries (optimización de acceso a datos).
+        
         // 1. Detección de duplicados de UnitNumber
         var requestNumbers = bulk.Units.Select(x => x.UnitNumber?.Trim() ?? "").Where(x => !string.IsNullOrEmpty(x)).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var existingNumbers = await _repo.GetExistingUnitNumbersAsync(communityId, requestNumbers, ct);
 
         // 2. Detección de duplicados de COMPONENTES en el request (Global)
         var allRequestComponents = bulk.Units
-            .SelectMany(u => u.Components ?? new List<CreateUnitComponentDto>())
+            .SelectMany(u => u.Components ?? [])
             .GroupBy(c => $"{c.Type?.Trim()}|{c.Code?.Trim()}", StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.Count(), StringComparer.OrdinalIgnoreCase);
 
@@ -245,7 +275,8 @@ public class UnitService
             }
             catch (DbUpdateException)
             {
-                // Fallback por concurrencia
+                // Estrategia de Fallback: Ocurre ante una recarga concurrente de la entidad, 
+                // bloqueando el guardado. Se marca la transacción actual como fallida.
                 return HandlePersistenceError(communityId, bulk, results);
             }
         }
@@ -296,7 +327,7 @@ public class UnitService
     {
         foreach (var res in results.Where(x => x.Success).ToList())
         {
-            results[res.Index] = new BulkItemResult<UnitResponseDto>(res.Index, false, "Database constraint violation (possible concurrent component assignment)", null);
+            results[res.Index] = new BulkItemResult<UnitResponseDto>(res.Index, false, "Violación de restricción de base de datos (concurrencia detectada en asignación de componentes)", null);
         }
         
         return new BulkResponse<UnitResponseDto>(communityId, bulk.Units.Count, 0, bulk.Units.Count, results);

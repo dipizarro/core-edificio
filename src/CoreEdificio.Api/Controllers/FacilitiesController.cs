@@ -1,5 +1,6 @@
 using CoreEdificio.Api.Auth;
 using CoreEdificio.Api.Contracts;
+using CoreEdificio.Application.Services;
 using CoreEdificio.Domain.Entities;
 using CoreEdificio.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
@@ -14,34 +15,34 @@ namespace CoreEdificio.Api.Controllers;
 [Route("api/communities/{communityId:guid}/facilities")]
 public class FacilitiesController : ControllerBase
 {
+    private readonly FacilityService _service;
     private readonly AppDbContext _db;
 
-    public FacilitiesController(AppDbContext db)
+    public FacilitiesController(FacilityService service, AppDbContext db)
     {
+        _service = service;
         _db = db;
     }
 
+    /// <summary>
+    /// Lista de instalaciones disponibles para la comunidad.
+    /// </summary>
     [HttpGet]
     [ProducesResponseType(typeof(List<FacilityDto>), 200)]
     public async Task<IActionResult> List(Guid communityId, CancellationToken ct)
     {
-        var facilities = await _db.Facilities
-            .Where(f => f.CommunityId == communityId)
-            .OrderBy(f => f.Name)
-            .Select(f => ToDto(f))
-            .ToListAsync(ct);
-
-        return Ok(facilities);
+        var facilities = await _service.ListAsync(communityId, ct);
+        return Ok(facilities.Select(ToDto));
     }
 
+    /// <summary>
+    /// Devuelve los datos de una instalación particular.
+    /// </summary>
     [HttpGet("{facilityId:guid}")]
     [ProducesResponseType(typeof(FacilityDto), 200)]
     public async Task<IActionResult> GetById(Guid communityId, Guid facilityId, CancellationToken ct)
     {
-        var facility = await _db.Facilities
-            .AsNoTracking()
-            .FirstOrDefaultAsync(f => f.Id == facilityId && f.CommunityId == communityId, ct);
-
+        var facility = await _service.GetByIdAsync(communityId, facilityId, ct);
         if (facility is null)
             return NotFound();
 
@@ -211,27 +212,20 @@ public class FacilitiesController : ControllerBase
 
         return Ok(response);
     }
+    
+    /// <summary>
+    /// Crea una nueva instalación comunitaria (Quincho, Piscina, Sala Multiuso).
+    /// </summary>
     [HttpPost]
     [ProducesResponseType(typeof(FacilityDto), 201)]
     public async Task<IActionResult> Create(Guid communityId, CreateFacilityRequest request, CancellationToken ct)
     {
-        if (!await _db.Communities.AnyAsync(c => c.Id == communityId, ct))
-            return NotFound($"Community {communityId} not found.");
-
-        if (!TryParseChargingMode(request.ChargingMode, out var chargingMode))
-            return BadRequest("ChargingMode must be one of: Free, Paid, Deposit, PaidAndDeposit.");
-
-        var validationError = ValidateRequest(request.Name, request.SlotDurationMinutes, chargingMode, request.RentAmountClp, request.DepositAmountClp);
-        if (validationError is not null)
-            return BadRequest(validationError);
-
-        var facility = new Facility
+        var dto = new CreateFacilityDto
         {
-            CommunityId = communityId,
-            Name = request.Name.Trim(),
+            Name = request.Name,
             Description = request.Description,
             Capacity = request.Capacity,
-            ChargingMode = chargingMode,
+            ChargingMode = request.ChargingMode,
             RentAmountClp = request.RentAmountClp,
             DepositAmountClp = request.DepositAmountClp,
             RequiresApproval = request.RequiresApproval,
@@ -240,65 +234,49 @@ public class FacilitiesController : ControllerBase
             MaxBookingsPerMonthPerUnit = request.MaxBookingsPerMonthPerUnit,
             CancelPenaltyHours = request.CancelPenaltyHours,
             LateCancelFineAmountClp = request.LateCancelFineAmountClp,
-            NoShowFineAmountClp = request.NoShowFineAmountClp,
-            CreatedAtUtc = DateTime.UtcNow,
-            IsActive = true
+            NoShowFineAmountClp = request.NoShowFineAmountClp
         };
 
-        _db.Facilities.Add(facility);
-        await _db.SaveChangesAsync(ct);
-
+        var facility = await _service.CreateAsync(communityId, dto, ct);
         return CreatedAtAction(nameof(GetById), new { communityId, facilityId = facility.Id }, ToDto(facility));
     }
 
+    /// <summary>
+    /// Actualiza la configuración de una instalación (Cobros, penalidades, horas).
+    /// </summary>
     [HttpPut("{facilityId:guid}")]
     [ProducesResponseType(typeof(FacilityDto), 200)]
     public async Task<IActionResult> Update(Guid communityId, Guid facilityId, UpdateFacilityRequest request, CancellationToken ct)
     {
-        var facility = await _db.Facilities.FirstOrDefaultAsync(f => f.Id == facilityId && f.CommunityId == communityId, ct);
-        if (facility is null)
-            return NotFound();
+        var dto = new UpdateFacilityDto
+        {
+            Name = request.Name,
+            Description = request.Description,
+            Capacity = request.Capacity,
+            ChargingMode = request.ChargingMode,
+            RentAmountClp = request.RentAmountClp,
+            DepositAmountClp = request.DepositAmountClp,
+            RequiresApproval = request.RequiresApproval,
+            SlotDurationMinutes = request.SlotDurationMinutes,
+            MaxHoursPerBooking = request.MaxHoursPerBooking,
+            MaxBookingsPerMonthPerUnit = request.MaxBookingsPerMonthPerUnit,
+            CancelPenaltyHours = request.CancelPenaltyHours,
+            LateCancelFineAmountClp = request.LateCancelFineAmountClp,
+            NoShowFineAmountClp = request.NoShowFineAmountClp
+        };
 
-        if (!TryParseChargingMode(request.ChargingMode, out var chargingMode))
-            return BadRequest("ChargingMode must be one of: Free, Paid, Deposit, PaidAndDeposit.");
-
-        var validationError = ValidateRequest(request.Name, request.SlotDurationMinutes, chargingMode, request.RentAmountClp, request.DepositAmountClp);
-        if (validationError is not null)
-            return BadRequest(validationError);
-
-        facility.Name = request.Name.Trim();
-        facility.Description = request.Description;
-        facility.Capacity = request.Capacity;
-        facility.ChargingMode = chargingMode;
-        facility.RentAmountClp = request.RentAmountClp;
-        facility.DepositAmountClp = request.DepositAmountClp;
-        facility.RequiresApproval = request.RequiresApproval;
-        facility.SlotDurationMinutes = request.SlotDurationMinutes;
-        facility.MaxHoursPerBooking = request.MaxHoursPerBooking;
-        facility.MaxBookingsPerMonthPerUnit = request.MaxBookingsPerMonthPerUnit;
-        facility.CancelPenaltyHours = request.CancelPenaltyHours;
-        facility.LateCancelFineAmountClp = request.LateCancelFineAmountClp;
-        facility.NoShowFineAmountClp = request.NoShowFineAmountClp;
-
-        await _db.SaveChangesAsync(ct);
-
+        var facility = await _service.UpdateAsync(communityId, facilityId, dto, ct);
         return Ok(ToDto(facility));
     }
 
+    /// <summary>
+    /// Desactiva lógicamente una instalación para que no se puedan agendar más reservas.
+    /// </summary>
     [HttpPost("{facilityId:guid}/deactivate")]
     [ProducesResponseType(typeof(FacilityDto), 200)]
     public async Task<IActionResult> Deactivate(Guid communityId, Guid facilityId, CancellationToken ct)
     {
-        var facility = await _db.Facilities.FirstOrDefaultAsync(f => f.Id == facilityId && f.CommunityId == communityId, ct);
-        if (facility is null)
-            return NotFound();
-
-        if (!facility.IsActive)
-            return Ok(ToDto(facility));
-
-        facility.IsActive = false;
-        await _db.SaveChangesAsync(ct);
-
+        var facility = await _service.DeactivateAsync(communityId, facilityId, ct);
         return Ok(ToDto(facility));
     }
 
@@ -321,47 +299,5 @@ public class FacilitiesController : ControllerBase
             facility.CancelPenaltyHours,
             facility.LateCancelFineAmountClp,
             facility.NoShowFineAmountClp);
-    }
-
-    private static bool TryParseChargingMode(string chargingMode, out FacilityChargingMode mode)
-    {
-        mode = default;
-        if (string.IsNullOrWhiteSpace(chargingMode))
-            return false;
-
-        if (!Enum.TryParse(chargingMode, true, out FacilityChargingMode parsed))
-            return false;
-
-        if (!Enum.IsDefined(parsed))
-            return false;
-
-        mode = parsed;
-        return true;
-    }
-
-    private static string? ValidateRequest(string name, int slotDurationMinutes, FacilityChargingMode chargingMode, int rentAmountClp, int depositAmountClp)
-    {
-        if (string.IsNullOrWhiteSpace(name))
-            return "Name is required.";
-
-        if (slotDurationMinutes <= 0)
-            return "SlotDurationMinutes must be greater than zero.";
-
-        var requiresRent = chargingMode is FacilityChargingMode.Paid or FacilityChargingMode.PaidAndDeposit;
-        var requiresDeposit = chargingMode is FacilityChargingMode.Deposit or FacilityChargingMode.PaidAndDeposit;
-
-        if (chargingMode == FacilityChargingMode.Free)
-        {
-            if (rentAmountClp != 0 || depositAmountClp != 0)
-                return "Free facilities must have RentAmountClp and DepositAmountClp set to 0.";
-        }
-
-        if (requiresRent && rentAmountClp <= 0)
-            return "RentAmountClp must be greater than zero for paid facilities.";
-
-        if (requiresDeposit && depositAmountClp <= 0)
-            return "DepositAmountClp must be greater than zero for deposit facilities.";
-
-        return null;
     }
 }

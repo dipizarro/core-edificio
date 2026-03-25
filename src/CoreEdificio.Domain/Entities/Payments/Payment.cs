@@ -1,5 +1,8 @@
-﻿namespace CoreEdificio.Domain.Entities.Payments;
+namespace CoreEdificio.Domain.Entities.Payments;
 
+/// <summary>
+/// Representa un pago registrado en el sistema.
+/// </summary>
 public class Payment
 {
     public Guid Id { get; set; } = Guid.NewGuid();
@@ -7,7 +10,10 @@ public class Payment
     public Guid CommunityId { get; set; }
     public Guid UnitId { get; set; }
 
-    public string Period { get; set; } = null!; // YYYY-MM
+    /// <summary>
+    /// Período imputado (ej. "YYYY-MM").
+    /// </summary>
+    public string Period { get; set; } = null!;
     public decimal Amount { get; set; }
 
     public PaymentMethod Method { get; set; } = PaymentMethod.Transfer;

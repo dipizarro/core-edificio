@@ -6,6 +6,9 @@ using CoreEdificio.Domain.Entities.Billing;
 
 namespace CoreEdificio.Application.Services;
 
+/// <summary>
+/// Servicio responsable de gestionar el ciclo de vida de las reservas de instalaciones.
+/// </summary>
 public class BookingService
 {
     private readonly IBookingRepository _repo;
@@ -21,6 +24,10 @@ public class BookingService
         _uow = uow;
     }
 
+    /// <summary>
+    /// Registra una nueva reserva validando solapamientos temporales y cruces con mantenciones.
+    /// Ejecuta cobros inmediatos de forma transaccional si la instalación no requiere aprobación.
+    /// </summary>
     public async Task<Booking> CreateBookingAsync(
         Guid communityId,
         Guid facilityId,
@@ -32,32 +39,33 @@ public class BookingService
         CancellationToken ct = default)
     {
         if (startUtc >= endUtc)
-            throw new ValidationException("Start time must be before end time.");
+            throw new ValidationException("La fecha de inicio debe ser anterior a la fecha de finalización.");
 
         var facility = await _repo.GetFacilityAsync(communityId, facilityId, ct);
         if (facility is null)
-            throw new NotFoundException("Facility not found.");
+            throw new NotFoundException("Instalación no encontrada.");
 
         if (!facility.IsActive)
-            throw new ValidationException("Facility is inactive.");
+            throw new ValidationException("La instalación se encuentra inactiva.");
 
         if (facility.SlotDurationMinutes <= 0)
-            throw new ValidationException("Facility slot duration is invalid.");
+            throw new ValidationException("La duración del bloque configurado para esta instalación es inválida.");
 
         var durationMinutes = (endUtc - startUtc).TotalMinutes;
         if (durationMinutes <= 0 || durationMinutes % facility.SlotDurationMinutes != 0)
-            throw new ValidationException("Booking duration must be a multiple of the facility slot duration.");
+            throw new ValidationException("La duración de la reserva debe ser un múltiplo exacto de los bloques configurados para la instalación.");
 
         if (!await _repo.UnitExistsAsync(communityId, unitId, ct))
-            throw new NotFoundException("Unit not found in community.");
+            throw new NotFoundException("La unidad no existe en esta comunidad.");
 
-        // Check for active blocks
+        // Bloqueos por mantención
         var activeBlocks = await _blocks.GetActiveBlocksInRangeAsync(facilityId, startUtc, endUtc, ct);
         if (activeBlocks.Any())
-            throw new ValidationException("Facility is blocked for the selected time range.");
+            throw new ValidationException("La instalación se encuentra bloqueada por mantención u otra razón administrativa para las fechas seleccionadas.");
 
+        // Solapamiento
         if (await _repo.HasOverlapAsync(facilityId, startUtc, endUtc, ct))
-            throw new ConflictException("Booking overlaps with an existing reservation.");
+            throw new ConflictException("La reserva se cruza con otra previamente agendada.");
 
         var status = facility.RequiresApproval ? BookingStatus.PendingApproval : BookingStatus.Approved;
 
@@ -74,6 +82,7 @@ public class BookingService
             CreatedAtUtc = DateTime.UtcNow
         };
 
+        // Persistencia Transaccional: Si hay un cobro (por auto-aprobación) y falla, tampoco se guarda la reserva.
         await _uow.ExecuteInTransactionAsync(async token =>
         {
             await _repo.AddAsync(booking, token);
@@ -87,17 +96,20 @@ public class BookingService
         return booking;
     }
 
+    /// <summary>
+    /// Aprueba manualmente una reserva en estado pendiente, gatillando automáticamente el cobro si corresponde.
+    /// </summary>
     public async Task ApproveBookingAsync(Guid communityId, Guid facilityId, Guid bookingId, Guid userId, CancellationToken ct = default)
     {
         var booking = await _repo.GetByIdAsync(bookingId, ct);
         if (booking is null || booking.CommunityId != communityId || booking.FacilityId != facilityId)
-            throw new NotFoundException("Booking not found.");
+            throw new NotFoundException("Reserva no encontrada.");
 
         if (booking.Status != BookingStatus.PendingApproval)
-            throw new ValidationException("Only pending bookings can be approved.");
+            throw new ValidationException("Solamente reservas en estado pendiente pueden ser aprobadas.");
 
         var facility = await _repo.GetFacilityAsync(communityId, facilityId, ct);
-        if (facility is null) throw new NotFoundException("Facility not found.");
+        if (facility is null) throw new NotFoundException("Instalación no encontrada.");
 
         booking.Status = BookingStatus.Approved;
         booking.ApprovedAtUtc = DateTime.UtcNow;
@@ -110,14 +122,17 @@ public class BookingService
         }, ct);
     }
 
+    /// <summary>
+    /// Rechaza una reserva proporcionando un motivo de declinación.
+    /// </summary>
     public async Task RejectBookingAsync(Guid communityId, Guid facilityId, Guid bookingId, Guid userId, string reason, CancellationToken ct = default)
     {
         var booking = await _repo.GetByIdAsync(bookingId, ct);
         if (booking is null || booking.CommunityId != communityId || booking.FacilityId != facilityId)
-            throw new NotFoundException("Booking not found.");
+            throw new NotFoundException("Reserva no encontrada.");
 
         if (booking.Status != BookingStatus.PendingApproval)
-            throw new ValidationException("Only pending bookings can be rejected.");
+            throw new ValidationException("Solamente reservas en estado pendiente pueden ser rechazadas.");
 
         booking.Status = BookingStatus.Rejected;
         booking.RejectReason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
@@ -127,15 +142,18 @@ public class BookingService
         await _repo.UpdateAsync(booking, ct);
     }
 
+    /// <summary>
+    /// Cancela una reserva validando si aplica una multa por cancelación tardía según las reglas de la instalación.
+    /// </summary>
     public async Task CancelBookingAsync(Guid bookingId, Guid userId, string? reason, CancellationToken ct = default)
     {
         var booking = await _repo.GetByIdAsync(bookingId, ct);
-        if (booking is null) throw new NotFoundException("Booking not found.");
+        if (booking is null) throw new NotFoundException("Reserva no encontrada.");
 
         if (booking.Status == BookingStatus.Cancelled) return;
 
         if (booking.Status != BookingStatus.PendingApproval && booking.Status != BookingStatus.Approved)
-            throw new ValidationException($"Cannot cancel booking with status {booking.Status}.");
+            throw new ValidationException($"No es posible cancelar una reserva con estado {booking.Status}.");
 
         var oldStatus = booking.Status;
         booking.Status = BookingStatus.Cancelled;
@@ -147,6 +165,7 @@ public class BookingService
         {
             await _repo.UpdateAsync(booking, token);
 
+            // Multa por Cancelación Tardía
             if (oldStatus == BookingStatus.Approved)
             {
                 var facility = await _repo.GetFacilityAsync(booking.CommunityId, booking.FacilityId, token);
@@ -162,24 +181,27 @@ public class BookingService
         }, ct);
     }
 
+    /// <summary>
+    /// Marca un 'No-Show' para el residente, gatillando de inmediato una multa si la instalación lo contempla en su configuración.
+    /// </summary>
     public async Task MarkNoShowAsync(Guid communityId, Guid facilityId, Guid bookingId, Guid userId, CancellationToken ct = default)
     {
         var booking = await _repo.GetByIdAsync(bookingId, ct);
         if (booking is null || booking.CommunityId != communityId || booking.FacilityId != facilityId)
-            throw new NotFoundException("Booking not found.");
+            throw new NotFoundException("Reserva no encontrada.");
 
         if (booking.Status == BookingStatus.NoShow) return;
 
         if (booking.Status != BookingStatus.Approved)
-            throw new ValidationException("Only approved bookings can be marked as No-Show.");
+            throw new ValidationException("Solo reservas aprobadas pueden marcarse como inasistencia (No-Show).");
 
         if (booking.StartAtUtc > DateTime.UtcNow)
-            throw new ValidationException("Cannot mark as No-Show before the booking starts.");
+            throw new ValidationException("No se puede marcar inasistencia antes de que inicie la hora de reserva.");
 
         booking.Status = BookingStatus.NoShow;
 
         var facility = await _repo.GetFacilityAsync(communityId, facilityId, ct);
-        if (facility is null) throw new NotFoundException("Facility not found.");
+        if (facility is null) throw new NotFoundException("Instalación no encontrada.");
 
         await _uow.ExecuteInTransactionAsync(async token =>
         {
@@ -192,6 +214,9 @@ public class BookingService
         }, ct);
     }
 
+    /// <summary>
+    /// Método interno de apoyo para generar los cargos asociados (Arriendo/Garantía) tras la aprobación de la Reserva.
+    /// </summary>
     public async Task GenerateChargesForBookingAsync(Booking booking, Facility facility, CancellationToken ct)
     {
         if (booking.Status != BookingStatus.Approved) return;
@@ -256,7 +281,7 @@ public class BookingService
 
         var period = booking.StartAtUtc.ToString("yyyy-MM");
         var timeStr = $"{booking.StartAtUtc:yyyy-MM-dd HH:mm}-{booking.EndAtUtc:HH:mm}";
-        var label = fineType == "LateCancel" ? "cancelación tardía" : "no-show";
+        var label = fineType == "LateCancel" ? "cancelación tardía" : "inasistencia";
 
         var charge = new Charge
         {
@@ -275,16 +300,19 @@ public class BookingService
         await _charges.AddAsync(charge, ct);
     }
 
+    /// <summary>
+    /// Finaliza una reserva y la marca como completada de forma exitosa logrando cerrar el ciclo de vida administrativamente.
+    /// </summary>
     public async Task CompleteBookingAsync(Guid communityId, Guid facilityId, Guid bookingId, Guid userId, CancellationToken ct = default)
     {
         var booking = await _repo.GetByIdAsync(bookingId, ct);
         if (booking is null || booking.CommunityId != communityId || booking.FacilityId != facilityId)
-            throw new NotFoundException("Booking not found.");
+            throw new NotFoundException("Reserva no encontrada.");
 
         if (booking.Status == BookingStatus.Completed) return;
 
         if (booking.Status != BookingStatus.Approved)
-            throw new ValidationException("Only approved bookings can be completed.");
+            throw new ValidationException("Solo reservas aprobadas pueden finalizarse exitosamente.");
 
         booking.Status = BookingStatus.Completed;
         booking.CompletedAtUtc = DateTime.UtcNow;

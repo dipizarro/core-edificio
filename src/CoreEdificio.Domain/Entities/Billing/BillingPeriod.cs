@@ -1,11 +1,18 @@
-﻿namespace CoreEdificio.Domain.Entities.Billing;
+namespace CoreEdificio.Domain.Entities.Billing;
 
+/// <summary>
+/// Representa un período de facturación mensual para una comunidad.
+/// </summary>
 public class BillingPeriod
 {
     public Guid Id { get; set; } = Guid.NewGuid();
 
     public Guid CommunityId { get; set; }
-    public string Period { get; set; } = null!; // "YYYY-MM"
+    
+    /// <summary>
+    /// Período en formato "YYYY-MM" (ej. 2023-10).
+    /// </summary>
+    public string Period { get; set; } = null!;
 
     public BillingPeriodStatus Status { get; set; } = BillingPeriodStatus.Draft;
 
@@ -14,5 +21,5 @@ public class BillingPeriod
 
     public DateTime? IssuedAtUtc { get; set; }
 
-    public List<UnitCharge> UnitCharges { get; set; } = new();
+    public List<UnitCharge> UnitCharges { get; set; } = [];
 }
