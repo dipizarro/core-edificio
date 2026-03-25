@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
@@ -14,15 +14,12 @@ namespace CoreEdificio.Infrastructure.Migrations
                 name: "IX_Charges_SourceType_SourceId_ChargeKind",
                 table: "Charges");
 
-            migrationBuilder.AlterColumn<string>(
+            migrationBuilder.AddColumn<string>(
                 name: "FineType",
                 table: "Charges",
                 type: "nvarchar(20)",
                 maxLength: 20,
-                nullable: true,
-                oldClrType: typeof(string),
-                oldType: "nvarchar(max)",
-                oldNullable: true);
+                nullable: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_Charges_SourceType_SourceId_ChargeKind_FineType",
@@ -39,15 +36,9 @@ namespace CoreEdificio.Infrastructure.Migrations
                 name: "IX_Charges_SourceType_SourceId_ChargeKind_FineType",
                 table: "Charges");
 
-            migrationBuilder.AlterColumn<string>(
+            migrationBuilder.DropColumn(
                 name: "FineType",
-                table: "Charges",
-                type: "nvarchar(max)",
-                nullable: true,
-                oldClrType: typeof(string),
-                oldType: "nvarchar(20)",
-                oldMaxLength: 20,
-                oldNullable: true);
+                table: "Charges");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Charges_SourceType_SourceId_ChargeKind",
