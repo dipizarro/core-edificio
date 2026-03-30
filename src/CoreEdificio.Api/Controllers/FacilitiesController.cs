@@ -9,7 +9,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CoreEdificio.Api.Controllers;
 
-[Authorize(Roles = "Committee,Admin")]
 [Authorize(Policy = AuthPolicies.CommunityScope)]
 [ApiController]
 [Route("api/communities/{communityId:guid}/facilities")]
@@ -28,6 +27,7 @@ public class FacilitiesController : ControllerBase
     /// Lista de instalaciones disponibles para la comunidad.
     /// </summary>
     [HttpGet]
+    [Authorize(Roles = "Committee,Admin,Resident")]
     [ProducesResponseType(typeof(List<FacilityDto>), 200)]
     public async Task<IActionResult> List(Guid communityId, CancellationToken ct)
     {
@@ -39,6 +39,7 @@ public class FacilitiesController : ControllerBase
     /// Devuelve los datos de una instalación particular.
     /// </summary>
     [HttpGet("{facilityId:guid}")]
+    [Authorize(Roles = "Committee,Admin,Resident")]
     [ProducesResponseType(typeof(FacilityDto), 200)]
     public async Task<IActionResult> GetById(Guid communityId, Guid facilityId, CancellationToken ct)
     {
@@ -217,6 +218,7 @@ public class FacilitiesController : ControllerBase
     /// Crea una nueva instalación comunitaria (Quincho, Piscina, Sala Multiuso).
     /// </summary>
     [HttpPost]
+    [Authorize(Roles = "Committee,Admin")]
     [ProducesResponseType(typeof(FacilityDto), 201)]
     public async Task<IActionResult> Create(Guid communityId, CreateFacilityRequest request, CancellationToken ct)
     {
@@ -245,6 +247,7 @@ public class FacilitiesController : ControllerBase
     /// Actualiza la configuración de una instalación (Cobros, penalidades, horas).
     /// </summary>
     [HttpPut("{facilityId:guid}")]
+    [Authorize(Roles = "Committee,Admin")]
     [ProducesResponseType(typeof(FacilityDto), 200)]
     public async Task<IActionResult> Update(Guid communityId, Guid facilityId, UpdateFacilityRequest request, CancellationToken ct)
     {
@@ -273,6 +276,7 @@ public class FacilitiesController : ControllerBase
     /// Desactiva lógicamente una instalación para que no se puedan agendar más reservas.
     /// </summary>
     [HttpPost("{facilityId:guid}/deactivate")]
+    [Authorize(Roles = "Committee,Admin")]
     [ProducesResponseType(typeof(FacilityDto), 200)]
     public async Task<IActionResult> Deactivate(Guid communityId, Guid facilityId, CancellationToken ct)
     {

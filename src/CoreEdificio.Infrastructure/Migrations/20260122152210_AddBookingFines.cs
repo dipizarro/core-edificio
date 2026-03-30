@@ -10,6 +10,27 @@ namespace CoreEdificio.Infrastructure.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.AddColumn<int>(
+                name: "CancelPenaltyHours",
+                table: "Facilities",
+                type: "int",
+                nullable: false,
+                defaultValue: 0);
+
+            migrationBuilder.AddColumn<int>(
+                name: "LateCancelFineAmountClp",
+                table: "Facilities",
+                type: "int",
+                nullable: false,
+                defaultValue: 0);
+
+            migrationBuilder.AddColumn<int>(
+                name: "NoShowFineAmountClp",
+                table: "Facilities",
+                type: "int",
+                nullable: false,
+                defaultValue: 0);
+
             migrationBuilder.DropIndex(
                 name: "IX_Charges_SourceType_SourceId_ChargeKind",
                 table: "Charges");
@@ -32,6 +53,18 @@ namespace CoreEdificio.Infrastructure.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.DropColumn(
+                name: "CancelPenaltyHours",
+                table: "Facilities");
+
+            migrationBuilder.DropColumn(
+                name: "LateCancelFineAmountClp",
+                table: "Facilities");
+
+            migrationBuilder.DropColumn(
+                name: "NoShowFineAmountClp",
+                table: "Facilities");
+
             migrationBuilder.DropIndex(
                 name: "IX_Charges_SourceType_SourceId_ChargeKind_FineType",
                 table: "Charges");
