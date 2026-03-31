@@ -8,7 +8,6 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace CoreEdificio.Api.Controllers;
 
-[Authorize(Roles = "Committee,Admin")]
 [Authorize(Policy = AuthPolicies.CommunityScope)]
 [ApiController]
 [Route("api/communities/{communityId:guid}/billing")]
@@ -29,6 +28,7 @@ public class BillingController : ControllerBase
     /// Registra un nuevo gasto común individual para un periodo específico.
     /// </summary>
     [HttpPost("expenses")]
+    [Authorize(Roles = "Committee,Admin")]
     public async Task<IActionResult> CreateExpense(Guid communityId, CreateExpenseCommand cmd, CancellationToken ct)
     {
         var created = await _billing.CreateExpenseAsync(communityId, cmd, ct);
@@ -39,6 +39,7 @@ public class BillingController : ControllerBase
     /// Registra múltiples gastos comunes de forma masiva (Bulk) para facilitar la digitación.
     /// </summary>
     [HttpPost("expenses/bulk")]
+    [Authorize(Roles = "Committee,Admin")]
     public async Task<IActionResult> CreateExpensesBulk(Guid communityId, CreateExpensesBulkCommand cmd, CancellationToken ct)
     {
         var response = await _billing.CreateExpensesBulkAsync(communityId, cmd, ct);
@@ -49,6 +50,7 @@ public class BillingController : ControllerBase
     /// Emite oficialmente un periodo contable, realizando el prorrateo automático y bloqueando modificaciones futuras.
     /// </summary>
     [HttpPost("{period}/issue")]
+    [Authorize(Roles = "Committee,Admin")]
     public async Task<IActionResult> Issue(Guid communityId, string period, CancellationToken ct)
     {
         var summary = await _billing.IssueAsync(communityId, new IssueBillingPeriodCommand(period), ct);
@@ -59,6 +61,7 @@ public class BillingController : ControllerBase
     /// Obtiene el resumen de facturación y prorrateo de un periodo específico.
     /// </summary>
     [HttpGet("{period}")]
+    [Authorize(Roles = "Committee,Admin")]
     public async Task<IActionResult> GetSummary(Guid communityId, string period, CancellationToken ct)
     {
         var summary = await _billing.GetSummaryAsync(communityId, period, ct);
@@ -69,6 +72,7 @@ public class BillingController : ControllerBase
     /// Obtiene el listado de unidades con pagos incompletos o en morosidad (Arrears) para el periodo.
     /// </summary>
     [HttpGet("{period}/arrears")]
+    [Authorize(Roles = "Committee,Admin")]
     public async Task<IActionResult> GetArrears(Guid communityId, string period, CancellationToken ct)
     {
         var items = await _payments.GetArrearsAsync(communityId, period, ct);
@@ -79,6 +83,7 @@ public class BillingController : ControllerBase
     /// Consulta el estado de cuenta y cobros detallados de una unidad en particular (Vista de Administración).
     /// </summary>
     [HttpGet("units/{unitId:guid}/statement/{period}")]
+    [Authorize(Roles = "Committee,Admin")]
     public async Task<IActionResult> GetStatement(Guid communityId, Guid unitId, string period, CancellationToken ct)
     {
         var statement = await _billing.GetUnitStatementAsync(communityId, unitId, period, ct);
@@ -106,6 +111,7 @@ public class BillingController : ControllerBase
     /// Descarga el documento PDF del estado de cuenta de una unidad específica.
     /// </summary>
     [HttpGet("units/{unitId:guid}/statement/{period}/pdf")]
+    [Authorize(Roles = "Committee,Admin")]
     public async Task<IActionResult> GetStatementPdf(Guid communityId, Guid unitId, string period, CancellationToken ct)
     {
         var statement = await _billing.GetUnitStatementAsync(communityId, unitId, period, ct);
