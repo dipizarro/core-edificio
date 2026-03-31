@@ -1,18 +1,63 @@
-# Visual Studio / Rider
+# .NET Core
+bin/
+obj/
+*.tmp
+*.temp
+
+# Visual Studio
 .vs/
-.idea/
-
-# Build outputs
-**/bin/
-**/obj/
-
-# User-specific files
 *.user
 *.suo
+*.userosscache
+*.sln.docstates
 
-# Logs
+# Visual Studio Code
+.vscode/
+
+# Rider / JetBrains
+.idea/
+*.sln.iml
+
+# User-specific files
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Build Results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+build/
+bin/
+obj/
+
+# NuGet Packages
+*.nupkg
+# The packages folder can be ignored as of NuGet 2.8
+packages/
+
+# Project-specific logs and temp outputs
 *.log
+*_output.txt
+*error_log*.txt
+build_*.txt
+test_*.txt
+test_results.txt
+diag_output.txt
+ef_output*.txt
 
-# OS
+# Publish output
+publish/
+
+# Entity Framework
+*.db
+*.sqlite
+
+# OS-specific files
 .DS_Store
 Thumbs.db
